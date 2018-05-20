@@ -1,0 +1,8 @@
+*.csv
+*/*.csv
+.DS_Store
+*/.DS_Store
+.ipynb_checkpoints/*
+*/.ipynb_checkpoints/*
+bak/*
+*/bak/*

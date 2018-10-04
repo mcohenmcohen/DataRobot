@@ -6,6 +6,7 @@ import csv
 # import os
 import datetime
 import time
+import os
 import argparse as ap
 
 base_url = "http://gd2.mlb.com/components/game/mlb/"
@@ -29,7 +30,7 @@ def parse_game(url):
             time.sleep(10)
             pass
         pass
-    
+
     if debug > 0:
         print("Parsed game")
         pass
@@ -61,19 +62,19 @@ def parse_game(url):
     else:
         game_dict['game_type_des'] = "Unknown"
         pass
-    
+
     if 'local_game_time' in xmlfile.game.attrs:
         game_dict['local_game_time'] = xmlfile.game["local_game_time"]
     else:
         game_dict['local_game_time'] = "unknown"
         pass
-    
+
     if 'game_pk' in xmlfile.game.attrs:
         game_dict['game_id'] = xmlfile.game["game_pk"]
     else:
         game_dict['game_id'] = "unknown"
         pass
-    
+
     if xmlfile.find("team"):
         game_dict['home_team_id'] = xmlfile.find("team", type="home")["code"]
         game_dict['away_team_id'] = xmlfile.find("team", type="away")["code"]
@@ -85,13 +86,13 @@ def parse_game(url):
         game_dict['home_team_lg'] = "unknown"
         game_dict['away_team_lg'] = "unknown"
         pass
-    
+
     if game_dict['home_team_lg'] == game_dict['away_team_lg']:
         game_dict['interleague_fl'] = "F"
     else:
         game_dict['interleague_fl'] = "T"
         pass
-    
+
     if xmlfile.find("stadium"):
         game_dict['park_id'] = xmlfile.stadium["id"]
         game_dict['park_name'] = xmlfile.stadium["name"]
@@ -191,7 +192,7 @@ def parse_boxscore(url):
             time.sleep(10)
             pass
         pass
-    
+
     if debug > 0:
         print("Parse boxscore")
         pass
@@ -314,7 +315,7 @@ def parse_action(action, torb, inatbat):
             if debug > 1:
                 print("New catcher {} found".format(name), flush=True)
                 pass
-            
+
             if torb == "top":
                 game_dict["curr_home_catcher_id"] = id
                 game_dict["curr_home_catcher_name"] = name
@@ -364,7 +365,7 @@ def parse_action(action, torb, inatbat):
                     print(m_name)
                     pass
                 pass
-            else:            
+            else:
                 print("Match not made: {}".format(action["des"]), flush=True)
                 pass
             pass
@@ -422,7 +423,7 @@ def parse_action(action, torb, inatbat):
                 found = 1
                 pass
             pass
-            
+
         if found == 0:
             print("ERR: New pitcher {} not found".format(action["player"]))
             pass
@@ -446,7 +447,7 @@ def parse_action(action, torb, inatbat):
 
 def parse_atbat(ab):
     atbat_dict = {}
-    
+
     atbat_dict["battedball_cd"] = ""
     base1 = "_"
     base2 = "_"
@@ -548,7 +549,7 @@ def parse_atbat(ab):
         atbat_dict["event_cd"] = 2
         atbat_dict["battedball_cd"] = "G"
         pass
-                                                            
+
     elif event_tx == "Grounded Into DP":
         atbat_dict["event_cd"] = 2
         atbat_dict["battedball_cd"] = "G"
@@ -570,7 +571,7 @@ def parse_atbat(ab):
         else:
             atbat_dict["battedball_cd"] = ""
             pass
-        pass    
+        pass
     elif (event_tx == "Double Play" or event_tx == "Triple Play" or
           event_tx == "Sacrifice Bunt D"):
         atbat_dict["event_cd"] = 2
@@ -701,7 +702,7 @@ def parse_atbat(ab):
     if ab.find("runner", start="3B"):
         base3 = "3"
         pass
-    
+
     base_state_tx = base1 + base2 + base3
     atbat_dict["base_start_tx"] = base1 + base2 + base3
     if base_state_tx == "___":
@@ -1043,7 +1044,7 @@ def parse_inning_action(item, torb):
                 pitch_seq += pitch_dict["pitch_res"]
                 pitch_dict["pitch_seq"] = pitch_seq
                 atbat_dict["pitch_seq"] = pitch_seq
-                
+
                 pitch_type_seq += "|" + pitch_dict["pitch_type"]
                 pitch_dict["pitch_type_seq"] = pitch_type_seq
                 atbat_dict["pitch_type_seq"] = pitch_type_seq
@@ -1067,7 +1068,7 @@ def parse_inning_action(item, torb):
                 pitch_dict["pitcher_name"] = pitcher_name
                 pitch_dict["pitcher_hand"] = pitcher_hand
                 pitch_dict["pitcher_id"] = pitcher_id
-                
+
                 for k, v in game_dict.items():
                     if (k == "curr_away_catcher_id" or
                         k == "curr_home_catcher_id" or
@@ -1079,7 +1080,7 @@ def parse_inning_action(item, torb):
                         atbat_dict[k] = v
                         pass
                     pass
-                
+
                 if torb == "top":
                     pitch_dict["catcher_name"] = game_dict["curr_home_catcher_name"]
                     pitch_dict["catcher_id"] = game_dict["curr_home_catcher_id"]
@@ -1238,7 +1239,7 @@ def read_game(g_url, date):
     else:
         print("WARN: Couldn't find inning directory at {}".format(g_url))
         pass
-    
+
     if debug > 5:
         game_keys = []
         for k in game_dict:
@@ -1261,7 +1262,7 @@ def read_yearmonth(year, month):
         endyear += 1
         endmonth = 1
         pass
-    
+
     startdate = datetime.date(year, month, 1)
     enddate = datetime.date(endyear, endmonth, 1)
     delta = enddate - startdate
@@ -1274,7 +1275,7 @@ def read_yearmonth(year, month):
         d = active_date.strftime('%d')
         datestr = y + "-" + m + "-" + d
         # url = base_url + "year_" + y + "/month_" + m + "/day_" + d + "/"
-        url = base_url + "year_" + y + "/month_" + m + "/day_" + d 
+        url = base_url + "year_" + y + "/month_" + m + "/day_" + d
         # print(url)
 
         good_url = 0
@@ -1319,8 +1320,11 @@ def read_yearmonth(year, month):
     # for k, v in game_dict.items():
     #    print("{} => {}".format(k, v))
     #    pass
-
+    if not os.path.exists("atbats"):
+        os.makedirs("atbats")
     atbat_file = "atbats/atbats_" + str(year) + "-" + str(month) + ".csv"
+    if not os.path.exists("pitches"):
+        os.makedirs("pitches")
     pitches_file = "pitches/pitches_" + str(year) + "-" + str(month) + ".csv"
 
     if len(atbats) > 0:
@@ -1365,7 +1369,7 @@ def read_year(year):
         read_game(g_url, '2015-03-03')
         g_url = "http://gd2.mlb.com/components/game/mlb/year_2015/month_06/day_30/gid_2015_06_30_pitmlb_detmlb_1/"
         read_game(g_url, '2015-03-03')
-        
+
         return
     elif test == 2:
         read_yearmonth(year, 3)
@@ -1401,7 +1405,7 @@ def main():
         test = args.test
         read_year(2015)
         return
-    
+
     if args.year:
         if args.month:
             read_yearmonth(args.year, args.month)
@@ -1413,7 +1417,7 @@ def main():
     else:
         print("ERR: No year specified")
         pass
-    
+
     return
 
 

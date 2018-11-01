@@ -1,0 +1,231 @@
+# standard imports
+import os
+import numpy as np
+import pandas as pd
+import datarobot as dr
+
+# CONSTANTS - path, data file name
+DATA_PATH = "/Users/Peter/Documents/DataRobot"
+TARGET_FEAT = "SalePrice"
+CREATE_PROJ_NAME = "ZPCN - collinear feature impact demo"
+TRAIN_DATA = "ZPCN.csv"
+
+#
+FEATLIST_STEM = 'zcoll_'
+SCORING_TYPE = 'crossValidation'
+
+# Which project to use
+GET_PROJECT_ID = "5bafc6c4db9d452995b20585"
+# GET_PROJECT_ID = None  # build project from scratch
+
+# DR settings
+MAX_WORKERS = 20  # set your max number of workers here...
+
+# your credentials here :)
+API_TOKEN = "pfFwCx0if_Tz4qxTnmh-sxYxuTkEKiJs"
+API_ENDPOINT = "https://app.eu.datarobot.com/api/v2"
+dr.Client(endpoint=API_ENDPOINT, token=API_TOKEN)
+
+
+# -------------------------------------------------------------------------------------------------
+# FUNCTION DEFINITIONS —
+# GET VARIOUS THINGS WITH ERROR HANDLING
+# -------------------------------------------------------------------------------------------------
+
+
+# feature impact - get if already computed, add if not
+def get_or_calc_feat_impact(model):
+    try:
+        # if it's computed already
+        fi = model.get_feature_impact()
+        print('Retrieved feature impact for', model.id, model.model_type)
+    except dr.errors.ClientError as e:
+        # the feature impact score haven't been computed yet, so compute it
+        assert e.status_code == 404  # check there's nothing else kaput
+        print('Computing feature impact for', model.id, model.model_type, '...')
+        impact_job = model.request_feature_impact()
+        fi = impact_job.get_result_when_complete()
+        print('...retrieved.')
+
+    return fi
+
+
+# feature list - get if already added, add if not
+def get_or_create_featurelist(project, fl_name, features):
+    try:
+        flist = dr_proj.create_featurelist(fl_name, features)
+    except dr.errors.ClientError as e:
+        assert e.status_code == 422  # check there's nothing else kaput
+        # this is horrible syntax, but works — we can't access featurelists by name, so we iterate
+        # over all fl in the project until we find one that matches the name of what we want
+        scratch_fl = project.get_featurelists()
+        flist = [fl for fl in scratch_fl if fl.name == fl_name][0]
+    return flist
+
+
+# -------------------------------------------------------------------------------------------------
+# MAIN
+# -------------------------------------------------------------------------------------------------
+
+# we'll need the data either way...
+print('Reading data...')
+model_data = pd.read_csv(os.path.join(DATA_PATH, TRAIN_DATA), encoding='latin-1')
+
+# build project if don't already have
+if GET_PROJECT_ID is None:
+    print('No project ID given.  Creating project...')
+    dr_proj = dr.Project.create(model_data, project_name=CREATE_PROJ_NAME)
+
+    print('Setting target variable...')
+    dr_proj.set_worker_count(MAX_WORKERS)
+    dr_proj.set_target(target=TARGET_FEAT)
+
+    print('Running autopilot...')
+    dr_proj.wait_for_autopilot()
+
+else:
+    # get existing project
+    print('Getting project', GET_PROJECT_ID)
+    dr_proj = dr.Project.get(project_id=GET_PROJECT_ID)
+
+# get the best non-blender model
+proj_metric = dr_proj.metric
+models = dr_proj.get_models(order_by=['-metric', 'sample_pct'])
+# models = dr_proj.get_models()
+for m in models:
+    if u'Blender' not in m.model_type:
+        best_model = m
+        break
+
+# get blueprint, featurelist associated with best model
+best_bp = m.blueprint_id
+best_fl_id = m.featurelist_id
+best_fl = dr.Featurelist.get(dr_proj.id, best_fl_id)
+
+# get list of features used
+feat_list = best_model.get_features_used()
+# feat_list = best_fl.features
+
+# which features do we want to investigate for being the most impactful?
+# TODO: START OF FUTURE LOOP iterating over multiple groups
+# TODO: add auto find logic
+coll_feats = [u'LotArea',
+              u'LotAreaNoise1',
+              u'LotAreaNoise2',
+              u'LotAreaNoise3',
+              ]
+
+# get the stub feature list excluding the above
+stub_feats = list(set(feat_list) - set(coll_feats))
+
+# get baseline feature impact and format as a DF
+fi = get_or_calc_feat_impact(best_model)
+base_fi = pd.DataFrame(fi).set_index('featureName')
+
+# and we'll store a few things in dicts, starting with our baseline
+impacts = {'baseline': base_fi}
+retrained_models = {'baseline': best_model}
+# jobs = {'baseline': None}
+
+feat_lists = {'baseline': get_or_create_featurelist(dr_proj, 'baseline', feat_list)}
+model_ids = {'baseline': best_model.id}
+job_ids = {}
+fi_jobs = {}
+
+# and store the unnormalized impacts in a df for later comparison
+unn_imps = pd.DataFrame(base_fi.impactUnnormalized).rename(
+    columns={'impactUnnormalized': 'baseline'})
+
+# Now we'll work through the individual features - first, build the models
+for f in coll_feats:
+    # Make a feature list of stub + f
+    featl_name = FEATLIST_STEM + f
+    # check feat list hasn't been created yet --> create
+    feat_lists[f] = get_or_create_featurelist(dr_proj, featl_name, stub_feats + [f])
+    # train the model
+    # try:
+    job_ids[f] = best_model.train(featurelist_id=feat_lists[f].id,
+                                  scoring_type=SCORING_TYPE)
+    retrained_models[f] = None
+    # except dr.errors.JobAlreadyRequested as e:
+    # assert e.status_code == 422
+    # retrained_models[f] =
+    # model_ids[f] = job_ids[f]
+
+# then, build the feature impacts once model created (it's faster to split this way)
+for f in coll_feats:
+    # get the feature list name
+    featl_name = FEATLIST_STEM + f
+    # and the model
+    retrained_models[f] = dr.models.modeljob.wait_for_async_model_creation(project_id=dr_proj.id,
+                                                                           model_job_id=job_ids[f])
+    print('Retrained model on list', featl_name, 'as Model.id', retrained_models[f].id)
+    # if feat impact is calculated already, get it
+    try:
+        impacts[f] = retrained_models[f].get_feature_impact()
+        fi_jobs[f] = None
+    except dr.errors.ClientError as e:
+        # the feature impact score haven't been computed yet, so compute it
+        impacts[f] = None
+        assert e.status_code == 404  # check there's nothing else kaput
+        print('Computing feature impact for', retrained_models[f].id,
+              retrained_models[f].model_type, '...')
+        fi_jobs[f] = retrained_models[f].request_feature_impact()
+
+# finally, mop up the feature impact jobs that are being calculated once complete
+# and compile the unnormalized feature impacts into one DF
+for f in coll_feats:
+    # retrieve fi if not already calculated
+    if impacts[f] is None:
+        impacts[f] = fi_jobs[f].get_result_when_complete()
+    # translate fi into a dataf
+    impacts[f] = pd.DataFrame(impacts[f]).set_index('featureName')
+    featl_name = FEATLIST_STEM + f
+    unn_imps[featl_name] = impacts[f].impactUnnormalized
+
+# get a DF of the model metrics
+optimisation_metric = dr_proj.metric
+
+metrics = {}
+
+for rmk in retrained_models.keys():
+    metrics[rmk] = {mname: retrained_models[rmk].metrics[mname][SCORING_TYPE]
+                    for mname in retrained_models[rmk].metrics.keys()}
+
+metr_DF = pd.DataFrame(metrics)
+
+# let's cross-check the most impactful feature -- this time on the full data
+# (we want the feature which gives us the best-performing model stand-alone)
+USE_MIN = True
+
+if USE_MIN:
+    bpfsm = metr_DF.loc[optimisation_metric, coll_feats].idxmin()
+else:
+    bpfsm = metr_DF.loc[optimisation_metric, coll_feats].idxmax()
+
+unn_imps = unn_imps.sort_values(by=bpfsm, ascending=False)
+
+# now let's difference the other features
+USE_RATIO = False
+
+new_model_data = model_data.loc[:, stub_feats + [bpfsm]]
+for f in coll_feats:
+    if f != bpfsm:
+        if USE_RATIO:
+            new_model_data['r_' + f + '_' + bpfsm] = model_data[f] / new_model_data[bpfsm]
+        else:
+            new_model_data['d_' + f + '_' + bpfsm] = model_data[f] - new_model_data[bpfsm]
+
+new_model_data.head(10)
+
+# and build a new project with the reshaped data
+print('Creating project with de-collinearised and differenced data...')
+dr_proj_nocoll = dr.Project.create(new_model_data, project_name=CREATE_PROJ_NAME + '_coll. removed')
+
+print('Setting target variable...')
+dr_proj_nocoll.set_worker_count(MAX_WORKERS)
+dr_proj_nocoll.set_target(target=TARGET_FEAT)
+
+dr_proj_nocoll.open_leaderboard_browser()
+
+

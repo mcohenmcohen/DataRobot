@@ -6,6 +6,7 @@ import csv
 # import os
 import datetime
 import time
+import os
 import argparse as ap
 
 base_url = "http://gd2.mlb.com/components/game/mlb/"
@@ -1254,11 +1255,7 @@ def read_game(g_url, date):
     return
 
 
-def read_yearmonth(year, month, day=0):
-    global atbats, pitches
-    atbats = []
-    pitches = []
-
+def read_yearmonth(year, month):
     endyear = year
     endmonth = month + 1
     if endmonth > 12:
@@ -1268,22 +1265,19 @@ def read_yearmonth(year, month, day=0):
 
     startdate = datetime.date(year, month, 1)
     enddate = datetime.date(endyear, endmonth, 1)
-
-    # if a day is specified, just get that one day
-    if day:
-        startdate = datetime.date(year, month, day)
-        enddate = startdate + datetime.timedelta(days=1)
     delta = enddate - startdate
 
-    for i in range(delta.days):
+    # for i in range(delta.days):
+    for i in range(1):
         active_date = startdate + datetime.timedelta(days=i)
-        print(active_date)
+        print('active_date:', active_date)
         y = str(active_date.year)
         m = active_date.strftime('%m')
         d = active_date.strftime('%d')
         datestr = y + "-" + m + "-" + d
         # url = base_url + "year_" + y + "/month_" + m + "/day_" + d + "/"
         url = base_url + "year_" + y + "/month_" + m + "/day_" + d
+        # print('url:', url)
         # print(url)
 
         good_url = 0
@@ -1297,6 +1291,7 @@ def read_yearmonth(year, month, day=0):
             pass
 
         if good_url:
+            # Get the games for the day
             day_dir = BeautifulSoup(urlopen(url), "xml")
             for game in day_dir.find_all("a", href=re.compile("gid_.*")):
                 g = game.get_text().strip()
@@ -1308,7 +1303,7 @@ def read_yearmonth(year, month, day=0):
                     pass
                 time.sleep(1)
                 g_url = url + "/" + g
-                print(g_url)
+                print('Game url:', g_url)
                 good1 = 0
                 try:
                     urlopen(g_url)
@@ -1328,14 +1323,12 @@ def read_yearmonth(year, month, day=0):
     # for k, v in game_dict.items():
     #    print("{} => {}".format(k, v))
     #    pass
-
-    if day:
-        day_str = "-" + str(day)
-    else:
-        day_str = ""
-
-    atbat_file = "atbats/atbats_" + str(year) + "-" + str(month) + day_str + ".csv"
-    pitches_file = "pitches/pitches_" + str(year) + "-" + str(month) + day_str + ".csv"
+    if not os.path.exists("atbats"):
+        os.makedirs("atbats")
+    atbat_file = "atbats/atbats_" + str(year) + "-" + str(month) + ".csv"
+    if not os.path.exists("pitches"):
+        os.makedirs("pitches")
+    pitches_file = "pitches/pitches_" + str(year) + "-" + str(month) + ".csv"
 
     if len(atbats) > 0:
         atbat_keys = []
@@ -1363,9 +1356,7 @@ def read_yearmonth(year, month, day=0):
                 writer.writerow(dict)
                 pass
             pass
-            return pitches
         pass
-
     return
 
 
@@ -1401,18 +1392,17 @@ def main():
     parser.add_argument("year", type=int,
                         help="year to pull at bats and pitches from")
     parser.add_argument("-m", "--month", type=int,
-                        help="month of year to pull at bats and pitches from")
-    parser.add_argument("-d", "--day", type=int,
-                        help="day of month to pull at bats and pitches from")
-    parser.add_argument("--debug", type=int,
+                        help="year to pull at bats and pitches from")
+    parser.add_argument("-d", "--debug", type=int,
                         help="debug flag")
     parser.add_argument("-t", "--test", type=int,
                         help="test flag")
 
     args = parser.parse_args()
+    print(args)
 
     if args.debug:
-        debug = arg.debug
+        debug = args.debug
         pass
 
     if args.test:
@@ -1432,17 +1422,7 @@ def main():
         print("ERR: No year specified")
         pass
 
-    if args.day:
-        if args.month:
-            read_yearmonth(args.year, args.month, args.day)
-            pass
-        else:
-            print("ERR: No month specified for the day of the month")
-            pass
-        pass
-
     return
 
 
-if __name__ == '__main__':
-    main()
+main()

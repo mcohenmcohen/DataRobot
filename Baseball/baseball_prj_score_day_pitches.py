@@ -102,13 +102,11 @@ def score_pitches(pitches):
     predictions_response.raise_for_status()
     df_preds = pd.DataFrame(predictions_response.json().get('data'))
 
-    # Flatten nested label/value dict via apply
+    # Flatten the nested predictions dict of label/value data in 'prediction values'
     df_preds['label1'] = None
     df_preds['proba1'] = None
     df_preds['label2'] = None
     df_preds['proba2'] = None
-
-    # flatten the nested predictions dict data
     def func(row):
         for i, pair in enumerate(row['predictionValues']):
             name = pair.get('label')
@@ -120,8 +118,8 @@ def score_pitches(pitches):
         return row
     df_preds_flat = df_preds.apply(lambda row: func(row), axis=1)
 
-    df_preds_flat.rename(columns={'proba1': 'class_1',
-                                  'proba2': 'class_0'},
+    df_preds_flat.rename(columns={'proba1': 'class_1.0',
+                                  'proba2': 'class_0.0'},
                          inplace=True)
     df_preds_flat.drop(['predictionValues', 'label1', 'label2'], axis=1, inplace=True)
     df_preds_flat['prediction'] = df_preds_flat['prediction'].astype(int)

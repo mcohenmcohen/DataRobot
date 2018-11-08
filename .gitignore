@@ -4,6 +4,8 @@
 */*.bin
 .DS_Store
 */.DS_Store
+*.docx
+**/*.docx
 .ipynb_checkpoints/*
 */.ipynb_checkpoints/*
 __pycache__/*

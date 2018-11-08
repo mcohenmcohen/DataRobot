@@ -1412,7 +1412,7 @@ def main():
     args = parser.parse_args()
 
     if args.debug:
-        debug = arg.debug
+        debug = args.debug
         pass
 
     if args.test:

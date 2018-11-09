@@ -1,7 +1,13 @@
+'''
+This file contains helper functions and example code for 1) the datarobot API,
+and 2) general eda helpers
+'''
 import pandas as pd
-import datarobot
+import datarobot as dr
 
-
+# ##############
+# DR API helpers
+# ##############
 def get_results(proj):
     '''
     Generates a summary of all model performances and put it into a DataFrame
@@ -33,5 +39,19 @@ def get_results(proj):
                                  for model in flist_models if model.metrics['LogLoss'] is not None])
 
     return val_scores.sort_values(by='cross_val_logloss')
-modelframe = get_results(project.id)
-modelframe
+# modelframe = get_results(project.id)
+# modelframe
+
+
+# ##############
+# EDA API helpers
+# ##############
+def print_value_counts(df, max_count_display=10):
+    for feat in df.columns:
+        vals = df[feat].value_counts()
+        counts = df[feat].value_counts().shape[0]
+        if counts > max_count_display:
+            print('%s: %s values' % (feat, counts))
+        else:
+            print('%s: %s values\n%s' % (feat, counts, vals))
+        print()

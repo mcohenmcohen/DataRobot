@@ -1,0 +1,239 @@
+---
+title: "Marketing Attribution"
+output: html_notebook
+author: Colin Priest
+---
+
+## load the R packages
+```{r}
+library(httr)
+library(ggplot2)
+library(scales)
+library(datarobot)
+library(ggthemes)
+library(e1071)
+library(plyr)
+library(ggplot2) 
+```
+
+
+## Load the data from the historical marketing campaigns
+```{r}
+campaignData = read.csv('https://s3-ap-southeast-1.amazonaws.com/datarobotfiles/marketingDemo.csv', stringsAsFactors = FALSE)
+head(campaignData)
+```
+
+## Connect to DataRobot and log in
+```{r}
+# get the login details
+login = read.csv("c:/users/colin/Dropbox/login.csv", stringsAsFactors = FALSE)
+username = login$Username[1]
+apiToken = login$apiToken[1]
+drKey = login$drKey[1]
+rm(login)
+
+# set the parameters
+server = "https://app.datarobot.com"
+predictionServer = "https://cfds.orm.datarobot.com"
+# check that your account has API Access switched on
+# connect to the DataRobot server
+ConnectToDataRobot(endpoint = paste(server, "/api/v2", sep=""), token = apiToken)
+```
+
+## Build a DataRobot project that analyses the marketing campaign history
+```{r}
+target = "purchasePersonalLoan"
+targetValue = "yes"
+projectName = "Marketing Attribution"
+autoPilotMetric = "AUC"
+numWorkers = 20
+
+# create the project
+prj = SetupProject(campaignData, projectName, maxWait = 9999)
+# start autopilot
+SetTarget(project = prj, target = target, metric = autoPilotMetric, positiveClass = targetValue, 
+          maxWait = 9999, mode = 'quick')
+# use more (or less) workers
+UpdateProject(prj$projectId, newProjectName = NULL, workerCount = numWorkers)
+# wait for autopilot to finish
+WaitForAutopilot(prj, verbosity = 0)
+
+# pick a blueprint to use
+allBlueprints = as.data.frame(GetAllModels(prj))
+modelID = allBlueprints$modelId[which.max(allBlueprints$validationMetric)]
+#
+cat("Project model building completed\n")
+```
+
+## Score the training data and add the campaign costs
+```{r}
+# define which columns are the marketing touchpoints
+touchPoints = c('facebook', 'googleAds', 'sms')
+
+projectID = prj$projectId
+
+# the url of the prediction server
+url = paste0(predictionServer, '/api/v1/', projectID, '/', modelID, '/predict')
+# send the data to the prediction server and get the predictions
+myRequest = httr::POST(url,
+  	                     add_headers("datarobot-key" = drKey),
+    	                   c(authenticate(username, apiToken)),
+      	                 body = rjson::toJSON(unname(split(campaignData, 1:nrow(campaignData)))), 
+        	               httr::content_type_json())
+response = content(myRequest, as = 'text', encoding = 'UTF-8')
+response2 = jsonlite::fromJSON(response)
+if (response2$status != '') error (response2)
+predictions = jsonlite::fromJSON(response)$predictions
+campaignOpt = campaignData[, c('CustomerID', target, touchPoints)]
+campaignOpt$score = predictions$class_probabilities[,1]
+
+campaignOpt$cost_facebook = 1 * (campaignOpt$facebook == 'yes')
+campaignOpt$cost_googleAds = 0.1 * (campaignOpt$googleAds == 'yes')
+campaignOpt$cost_sms = 0.085 * (campaignOpt$sms == 'yes')
+campaignOpt$total_cost = campaignOpt$cost_facebook + campaignOpt$cost_googleAds + campaignOpt$cost_sms
+campaignOpt$salesMargin = 2 * campaignOpt$score
+campaignOpt$profit = campaignOpt$salesMargin - campaignOpt$total_cost
+
+head(campaignOpt, 20)
+
+```
+
+## Plot the optimal campaign size
+```{r}
+campaignOpt = campaignOpt[order(campaignOpt$profit, decreasing = TRUE),]
+campaignOpt$cumulativeProfit = cumsum(campaignOpt$profit)
+campaignOpt$cumulativeSales = cumsum(campaignOpt$score)
+campaignOpt$numberOfContacts = seq_len(nrow(campaignOpt))
+campaignOpt$optimalCampaignSize = which.max(campaignOpt$cumulativeProfit)
+
+g1 = ggplot(campaignOpt) + 
+  theme_igray() +
+  geom_line(aes(numberOfContacts, cumulativeProfit, colour = 'Profit')) +
+  geom_point(aes(optimalCampaignSize, max(cumulativeProfit), colour = 'Optimal Campaign Size')) +
+  xlab('Campaign Size (number of customers contacted)') +
+  ylab('Total Profit') + ggtitle('Campaign Optimisation') +
+  scale_x_continuous(labels = comma) + scale_y_continuous(labels = dollar) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_colour_manual(name="Legend",
+    values=c(Profit='black', 'Optimal Campaign Size'='red'))
+g1
+```
+
+## Build the what-if dataset for scoring
+```{r}
+newData = campaignData[campaignData$purchasePersonalLoan == 'yes',]
+
+# generate all of the what-if possibilities
+combinations = data.frame(bincombinations(length(touchPoints)))
+names(combinations) = touchPoints
+combinations$key = 'aaa'
+combinations2 = combinations
+combined = merge(combinations, combinations2, by = 'key')
+rm(combinations, combinations2)
+for (touchPoint in touchPoints)
+{
+  col1 = paste0(touchPoint, '.x')
+  col2 = paste0(touchPoint, '.y')
+  combined = combined[combined[, col2] <= combined[, col1],]
+  combined[, touchPoint] = ifelse(combined[, col2] == 0, 'no', 'yes')
+}
+combined$key = unlist(lapply(seq_len(nrow(combined)), function(x) paste(combined[x,paste0(touchPoints, '.x')], collapse = '')))
+combined = combined[, -(1 + seq_len(2 * length(touchPoints)))]
+
+# generate the what-ifs
+whatIfs = newData
+whatIfs$key = unlist(lapply(seq_len(nrow(whatIfs)), function(x) paste(ifelse(whatIfs[x, touchPoints] == 'yes', 1, 0), collapse = '')))
+whatIfs[, touchPoints] = NULL
+whatIfs = merge(whatIfs, combined, by = 'key')
+whatIfs = whatIfs[order(whatIfs$CustomerID, whatIfs$key),]
+whatIfs$key = NULL
+row.names(whatIfs) = NULL
+
+head(whatIfs, 20)
+```
+
+## score the what-if scenarios
+```{r}
+projectID = prj$projectId
+
+# the url of the prediction server
+url = paste0(predictionServer, '/api/v1/', projectID, '/', modelID, '/predict')
+# send the data to the prediction server and get the predictions
+myRequest = httr::POST(url,
+  	                     add_headers("datarobot-key" = drKey),
+    	                   c(authenticate(username, apiToken)),
+      	                 body = rjson::toJSON(unname(split(whatIfs, 1:nrow(whatIfs)))), 
+        	               httr::content_type_json())
+response = content(myRequest, as = 'text', encoding = 'UTF-8')
+response2 = jsonlite::fromJSON(response)
+if (response2$status != '') error (response2)
+predictions = jsonlite::fromJSON(response)$predictions
+whatIfs$score = predictions$class_probabilities[,1]
+
+head(whatIfs, 20)
+```
+
+## calculate the Shapely value for each customer who purchased a product
+```{r}
+# only calculate the marketing contribution when a sales occurred
+whatIfsYes = whatIfs[whatIfs$purchasePersonalLoan == 'yes',]
+campaignDataYes = campaignData[campaignData$purchasePersonalLoan == 'yes',]
+
+result = campaignDataYes
+result = result[order(result$CustomerID),]
+
+# get the baseline contribution - when all touchpoints are 'no'
+temp = whatIfsYes
+for (touchPoint in touchPoints)
+	temp = temp[temp[, touchPoint] == 'no',]
+result$contrib_baseline = temp$score
+
+# calculate the Shapely value for each touch point
+for (touchPoint in touchPoints)
+{
+  temp = whatIfsYes[, c('CustomerID', touchPoint, 'score')]
+  n = names(temp)
+  n[2] = 'touchPoint'
+  n[3] = 'whatIfContribution'
+  names(temp) = n
+  temp2 = ddply(temp, .(CustomerID), summarize, n = length(whatIfContribution), cccxxx = sum(whatIfContribution[touchPoint == 'yes']) - sum(whatIfContribution[touchPoint == 'no']))
+  temp2$cccxxx[temp2$n < 2] = 0
+  col1 = paste0('contrib_', touchPoint)
+  result[, col1] = temp2$cccxxx
+  result[result[, touchPoint] == 'no', col1] = 0
+  result[result$purchasePersonalLoan == 'no', col1] = 0
+}
+
+# rescale the Shapely value so that each row contribution adds to one sale
+result$temp_total = result$contrib_baseline
+for (touchPoint in touchPoints)
+	result$temp_total = result$temp_total + result[, paste0('contrib_', touchPoint)]
+result$contrib_baseline = result$contrib_baseline / result$temp_total
+for (touchPoint in touchPoints)
+	result[, paste0('contrib_', touchPoint)] = result[, paste0('contrib_', touchPoint)] / result$temp_total
+result$temp_total = NULL
+row.names(result) = NULL
+
+head(result[, c('CustomerID', 'contrib_baseline', paste0('contrib_', touchPoints))], 20)
+```
+
+## summarise the Shapely values so that we can see the overall contribution of each marketing touchpoint
+```{r}
+df <- data.frame(
+  touchpoint = c('None', touchPoints),
+  value = c(sum(result$contrib_baseline), unlist(lapply(touchPoints, function(x) sum(result[, paste0('contrib_', x)]))))
+  )
+head(df)
+df$touchpoint = factor(df$touchpoint, df$touchpoint)
+df$percentage = df$value / sum(df$value) * 100.0
+
+pie1 = ggplot(df, aes(x="", y=percentage, fill=touchpoint)) + geom_bar(width = 1, stat = "identity") +
+   scale_fill_brewer(palette="RdBu") + coord_polar("y", start=0) + ggtitle('Marketing Attribution - Percentage') +
+   xlab('') + ylab('') + labs(fill = 'Touch Point')
+pie1
+pie2 = ggplot(df, aes(x="", y=value, fill=touchpoint)) + geom_bar(width = 1, stat = "identity") +
+   scale_fill_brewer(palette="RdBu") + coord_polar("y", start=0) + ggtitle('Marketing Attribution - Sales Count') +
+   xlab('') + ylab('') + labs(fill = 'Touch Point')
+pie2
+```
+

@@ -2,6 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches  # for custom legends
 import seaborn as sns
+
+# https://lifelines.readthedocs.io/en/latest/Quickstart.html
 from lifelines import KaplanMeierFitter  # survival analysis library
 from lifelines.statistics import logrank_test  # survival statistical testing
 from IPython.display import Image
@@ -15,7 +17,7 @@ def display_all(df):
 
 
 def kaplan_meier(df, churn_var, tenure_var,
-                 segmentation_var='', segmentation_label=['a', 'b'],
+                 segmentation_var=None, segmentation_label=['a', 'b'],
                  ylim_min=.5):
     '''
     From:  https://towardsdatascience.com/survival-analysis-in-python-a-model-for-customer-churn-e737c5242822
@@ -37,6 +39,12 @@ def kaplan_meier(df, churn_var, tenure_var,
     kmf = KaplanMeierFitter()
     T = df[tenure_var]  # duration
     C = df[churn_var]  # censorship - 1 if death/churn is seen, 0 if censored
+    # Just a simple single plot if there is no variable to segment on
+    if segmentation_var is None:
+        kmf.fit(T, C)
+        kmf.plot()
+        return
+
     S = df[segmentation_var]
 
     palette = ["windows blue", "amber"]
@@ -45,6 +53,7 @@ def kaplan_meier(df, churn_var, tenure_var,
     # SET UP PLOT
     ax = plt.subplot(111)
     plt.title('Kaplan-Meier Estimate of Driver Retention by Multiple Lines')
+    plt.ylabel('% of Users Churned')
     sns.set_context("talk")
 
     d = {} #to store the models

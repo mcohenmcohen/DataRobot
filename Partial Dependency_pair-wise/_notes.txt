@@ -1,0 +1,27 @@
+From May 2019
+
+Vitalii Peretiatko   [5 days ago]
+@andy here’s my clumsy python code implementing 2way pdps https://github.com/datarobot/data-science-scripts/blob/master/vitalii_peretiatko/2-var_pdp_plot.ipynb (edited)
+
+Vitalii Peretiatko   [5 days ago]
+please pay attention on predict_batch_scoring function there, you may want to update it (e.g. to include keep_cols argument)
+
+Vitalii Peretiatko   [5 days ago]
+btw, here’s @John Hawkins’s nice python package https://github.com/john-hawkins/DataRobot_Partial_Dependency but I think there’s no support for categoricals
+john-hawkins/DataRobot_Partial_Dependency
+Examples of using the DataRobot Python API to generate partial dependency plots
+Language
+Python
+Last updated
+2 months ago
+john-hawkins/DataRobot_Partial_DependencyAug 8th, 2018Added by GitHub
+
+Colin Priest   [5 days ago]
+HTML 
+2WayModelXray.nb.html
+2 MB HTML — Click to download
+
+Colin Priest   [5 days ago]
+Plain Text 
+2WayModelXray.Rmd
+15 kB Plain Text — Click to download

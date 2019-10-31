@@ -1,0 +1,28 @@
+<!doctype html>
+<title>Upload new prediction requests in a csv file</title>
+
+<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
+
+<table class="centered thick-border">
+	<tr>
+		<th>#</th>
+		<th>Deployment Name</th>
+		<th>Deployment Id</th>
+	</tr>
+	{% for dep in deployments %}
+		<tr>
+			<td>{{ loop.index }}</td>
+			<td>{{ dep.label }}</td>
+			<td>{{ dep.id }}</td>
+		</tr>
+	{% endfor %}
+</table>
+
+<h1>Pick a deployment id to and select a prediction file</h1>
+<form method=post enctype=multipart/form-data>
+	Deployment Id: <input name="deployment_id">
+	<br>
+	<input type=file name=file>
+	<br>
+	<input type=submit value=Upload>
+</form>

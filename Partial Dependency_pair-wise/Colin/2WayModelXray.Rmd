@@ -1,0 +1,385 @@
+---
+title: "2-Way Model X-Ray"
+output: html_notebook
+author: Colin Priest
+---
+
+# User Settings
+```{r}
+# the path to the rating table
+filePath = 'C:/Users/Colin/Dropbox/DataRobot/InsuranceDemoData-MotorInsurance/GA2M rating table/rating_table.csv'
+
+# the path to the original data
+dataPath = 'C:/Users/Colin/Dropbox/DataRobot/InsuranceDemoData-MotorInsurance/demo data/InsuranceDemoWithPostcode250MB.csv'
+
+# define the columns for location (lat/lon)
+longitudeColumn = 'Longitude'
+latitudeColumn = 'Latitude'
+
+# define the feature pairs that you want to analyse and the type of plot
+featurePairs = data.frame(x = c('Longitude', 'DriverAge'),
+                          y = c('Latitude', NA),
+                          groupBy = c(NA, 'Gender'),
+                          plot = c('Map', 'Line'),
+                          stringsAsFactors = FALSE)
+
+# define geographic features that need to change with latitude and longitude
+geographicFeatures = c(
+  "PostCode_Aged_18_24", "PostCode_Aged_25_29", "PostCode_Aged_30_39", "PostCode_Aged_40_44",
+  "PostCode_Aged_45_49", "PostCode_Aged_50_59", "PostCode_Aged_60", "PostCode_PersonsPerDwelling",
+  "PostCode_annualKm", "PostCode_VehiclesPerDwelling", "PostCode_CommuteViaCar"
+            )
+  
+# define the target column - we will remove it from the data
+targetColumn = 'IncurredClaims'
+
+# define the exposure column - we will set it to 1
+exposureColumn = 'Exposure'
+
+# define the models that you want to run model x-ray
+modelList = data.frame(modelName = c('ENET Blender', 'Frequency-Severity GA2M', 'Frequency-Severity XGBoost', 'GA2M', 'XGBoost'),
+                       projectID = rep('59731d26c80891561e977584', 5), 
+                       modelID = c('59734b1df2fb97766b5bfd9b', '5973304ff2fb97695e5bfd96', '5973304ff2fb97695e5bfd97',
+                                   '5973304ff2fb97695e5bfd98', '5973304ff2fb97695e5bfd9a'))
+
+# get the login / account details
+login = read.csv("c:/users/colin/dropbox/login.csv", stringsAsFactors = FALSE)
+username = login$Username[1]
+apiToken = login$apiToken[1]
+drKey = login$drKey[1]
+rm(login)
+
+# google maps API key
+googleKey = as.character(unname(read.table('C:/Users/Colin/Dropbox/googleAPIkey.txt')[1, 1]))
+
+server = 'cfds.orm.datarobot.com'
+usehttps = TRUE
+```
+
+# Load the R packages
+```{r}
+# load the libraries
+library(httr)
+library(ggplot2)
+library(ggthemes)
+library(plyr)
+library(plot3D)
+library(lattice)
+library(datarobot)
+library(data.table)
+library(R.utils)
+library(ggmap)
+library(plot3D)
+library(lattice)
+```
+
+# Connect to DataRobot and set up sample data for model x-ray
+```{r}
+
+ConnectToDataRobot('https://app.datarobot.com/api/v2', apiToken)
+
+# read the training data
+rawData = read.csv(dataPath, stringsAsFactors = FALSE)
+rawData[, targetColumn] = NULL
+
+# create an sample dataset
+set.seed(12345)
+nSample = 100
+small = rawData[sample(nrow(rawData), nSample), ]
+
+```
+
+# helper functions
+```{r}
+estimateZoom = function(lo1, lo2, hi1, hi2)
+{
+  x = max(abs(hi1 - lo1), abs(hi2 - lo2))
+  z = floor(9 + log(x / 1.372695) / log(2))
+  return (z)
+}
+
+getElevation = function(loc)  # loc is lon/lat pair
+{
+  url = paste0('https://maps.googleapis.com/maps/api/elevation/json?locations=', loc[2], ',', loc[1], '&key=', googleKey)
+  myRequest = POST(url)
+  response = jsonlite::fromJSON(content(myRequest, as = 'text', encoding = 'UTF-8'))
+  if (response$status != 'OK') stop(paste0('Google maps elevation request = ', response$status))
+  return (response$results$elevation)
+}
+
+getPostCode = function(loc)  # loc is lon/lat pair
+{
+  url = paste0('https://maps.googleapis.com/maps/api/geocode/json?latlng=', loc[2], ',', loc[1], '&key=', googleKey)
+  myRequest = POST(url)
+  response = jsonlite::fromJSON(content(myRequest, as = 'text', encoding = 'UTF-8'))
+  if (grepl('ZERO_RESULTS', response$status, fixed = TRUE)) return (NA)
+  if (response$status != 'OK') stop(paste0('Google maps elevation request = ', response$status))
+  temp = response$results
+  if (sum(temp$types == 'postal_code') == 0)
+  {
+    temp2 = temp[1, 1]
+    if (length(temp2) == 0) return(NA)
+    temp2 = temp2[[1]]
+    if (sum(temp2$types == 'postal_code') == 0) return(NA)
+    return (temp2$long_name[temp2$types == 'postal_code'])
+  }
+  temp2 = temp[temp$types == 'postal_code', 1]
+  if (length(temp2) == 0) return (NA)
+  temp2 = temp2[[1]]
+  if (sum(grepl('postal_code', temp2$types, fixed = TRUE)) == 0) return(NA)
+  return(temp2$long_name[grepl('postal_code', temp2$types)])
+}
+
+showMap = function(feature1, feature2)
+{
+  # range of values
+  lo1 = min(rawData[, feature1], na.rm = TRUE)
+  lo2 = min(rawData[, feature2], na.rm = TRUE)
+  hi1 = max(rawData[, feature1], na.rm = TRUE)
+  hi2 = max(rawData[, feature2], na.rm = TRUE)
+
+  # create a grid that will be scored and plotted
+  resolution = 101
+  vals1 = lo1 + (hi1 - lo1) * (seq_len(resolution) - 1) / (resolution - 1)
+  vals2 = lo2 + (hi2 - lo2) * (seq_len(resolution) - 1) / (resolution - 1)
+  numGrid = expand.grid(x = vals1, y = vals2)
+  
+  # find the post code and whether the grid point is on land
+  geography = read.csv('C:/Users/Colin/Dropbox/DataRobot/InsuranceDemoData-MotorInsurance/geography/geography.csv', stringsAsFactors = FALSE)
+  numGrid$OnLand = FALSE
+  numGrid$PostCode = -999
+  changesMade = FALSE
+  for (i in seq_len(nrow(numGrid)))
+  {
+    temp = geography[abs(geography$Longitude - numGrid$x[i]) < 0.0001 & abs(geography$Latitude - numGrid$y[i]) < 0.0001,]
+    if (nrow(temp) == 0)
+    {
+      numGrid$OnLand[i] = NA
+      numGrid$PostCode[i] = NA
+      # add a row to geography
+      tempGeography = geography
+      geography = geography[rep(1, nrow(geography + 1)),]
+      geography[seq_len(nrow(tempGeography)),] = tempGeography
+      geography$Longitude[nrow(geography)] = numGrid$x[i]
+      geography$Latitude[nrow(geography)] = numGrid$y[i]
+      geography$Elevation[nrow(geography)] = getElevation(as.numeric(numGrid[i, c('x', 'y')]))
+      geography$IsLand[nrow(geography)] = (geography$Elevation[nrow(geography)] > -10)
+      geography$PostCode[nrow(geography)] = getPostCode(as.numeric(numGrid[i, c('x', 'y')]))
+      temp = geography[abs(geography$Longitude - numGrid$x[i]) < 0.0001 & abs(geography$Latitude - numGrid$y[i]) < 0.0001,]
+      if (nrow(temp) == 0) stop('nrow(temp) == 0')
+      changesMade = TRUE
+    } else {
+      if (is.na(temp$IsLand[1]))
+      {
+        geography$Elevation[abs(geography$Longitude - numGrid$x[i]) < 0.0001 & abs(geography$Latitude - numGrid$y[i]) < 0.0001] = getElevation(as.numeric(numGrid[i, c('x', 'y')]))
+        geography$IsLand[abs(geography$Longitude - numGrid$x[i]) < 0.0001 & abs(geography$Latitude - numGrid$y[i]) < 0.0001] = (geography$Elevation[abs(geography$Longitude - numGrid$x[i]) < 0.0001 & abs(geography$Latitude - numGrid$y[i]) < 0.0001] < -10)
+        temp = geography[abs(geography$Longitude - numGrid$x[i]) < 0.0001 & abs(geography$Latitude - numGrid$y[i]) < 0.0001,]
+        if (nrow(temp) == 0) stop('nrow(temp) == 0')
+        changesMade = TRUE
+      }
+      if (is.na(temp$PostCode[1]) && temp$IsLand[1] == 1)
+      {
+        geography$PostCode[abs(geography$Longitude - numGrid$x[i]) < 0.0001 & abs(geography$Latitude - numGrid$y[i]) < 0.0001] = getPostCode(as.numeric(numGrid[i, c('x', 'y')]))
+        temp = geography[abs(geography$Longitude - numGrid$x[i]) < 0.0001 & abs(geography$Latitude - numGrid$y[i]) < 0.0001,]
+        if (nrow(temp) == 0) stop('nrow(temp) == 0')
+        changesMade = TRUE
+      }
+    }
+    
+    numGrid$OnLand[i] = (temp$IsLand[1] == 1)
+    numGrid$PostCode[i] = temp$PostCode[1]
+  }
+  
+  if (changesMade) write.csv(geography, 'C:/Users/Colin/Dropbox/DataRobot/InsuranceDemoData-MotorInsurance/geography/geography.csv', row.names = FALSE)
+  
+  # drop the points that aren't on land
+  numGrid = numGrid[numGrid$OnLand,]
+  
+  # read the geographic features for each post code
+  postcodeFeatures = read.csv('C:/Users/Colin/Dropbox/DataRobot/InsuranceDemoData-MotorInsurance/geography/postcodeFeatures.csv', stringsAsFactors = FALSE)
+  
+  # add the geographic features to numGrid
+  numGrid = merge(numGrid, postcodeFeatures[, c('PostCode', geographicFeatures)], by = 'PostCode', all.x = TRUE)
+  
+  # remove the geographic features from small
+  small2 = small[, ! names(small) %in% geographicFeatures]
+
+  # link the grid to the sample data
+  small2$join = 'aaaaa'
+  numGrid$join = 'aaaaa'
+  toScore = merge(small2, numGrid, by = 'join')
+  toScore[, feature1] = toScore$x
+  toScore[, feature2] = toScore$y
+  toScore$x = NULL
+  toScore$y = NULL
+  toScore$join = NULL
+  toScore[, exposureColumn] = 1
+
+  toScore$Prediction = Inf
+
+  # don't get any more than 5000 predictions at a time
+  nPosts = ceiling(nrow(toScore) / 5000)
+  line1 = 1
+  line2 = 0
+  for (iPost in seq_len(nPosts))
+  {
+    line1 = line2 + 1
+    line2 = min(nrow(toScore), round(iPost / nPosts * nrow(toScore)))
+
+    # upload the data and do some scoring
+    url = paste0('http://', server, '/api/v1/', projectID, '/', modelID, '/predict')
+    if (usehttps) url = gsub('http://', 'https://', url, fixed = TRUE)
+    dat = rjson::toJSON(unname(split(toScore[line1:line2, ! names(toScore) %in% c('NearestRow', 'Prediction')],
+                                     1:nrow(toScore[line1:line2, ! names(toScore) %in% c('NearestRow', 'Prediction')]))))
+    myRequest = httr::POST(url,
+                       add_headers("datarobot-key" = drKey),
+                       c(authenticate(username, apiToken)),
+                       body = dat, 
+                       httr::content_type_json())
+
+    
+    response = jsonlite::fromJSON(content(myRequest, as = 'text', encoding = 'UTF-8'))
+    httpCode = response$code
+    if (httpCode != 200)
+    {
+      stop(paste0("Call to prediction server failed with HTTP code: ", httpCode))
+    } else {
+      executionTime = response$execution_time
+      predictions = response$predictions
+      predictions = predictions[order(predictions$row_id),]
+      toScore$Prediction[line1 + predictions$row_id] = predictions$prediction
+    }
+  }
+  toScore$Prediction[is.infinite(toScore$Prediction)] = NA
+  
+  # summarise the results
+  plotData = ddply(toScore, c(feature1, feature2),
+                   function(X) data.frame(
+                     Relativity = mean(X$Prediction),
+                     stringsAsFactors = FALSE
+                   ))
+  plotData$Relativity = plotData$Relativity / mean(plotData$Relativity)
+
+  # Download the base map
+  z = estimateZoom(lo1, lo2, hi1, hi2)
+  map = suppressMessages(get_map(location = c((lo1 + hi1)/2, (lo2 + hi2)/2), zoom = z, maptype = 'roadmap'))
+  xStep = (hi1 - lo1) / (resolution - 1)
+  yStep = (hi2 - lo2) / (resolution - 1)
+  stepSize = max(xStep, yStep)
+  g = suppressWarnings(suppressMessages(
+      ggmap(map, extent = "device") + geom_tile(data = plotData, aes(x = Longitude, y = Latitude, fill = Relativity), alpha = 0.5) +
+      scale_fill_gradient(low = "green", high = "red") + 
+      scale_x_continuous(limits = c(lo1 - 0.5 * stepSize, hi1 + 0.5 * stepSize), expand = c(0, 0)) + 
+      scale_y_continuous(limits = c(lo2 - 0.5 * stepSize, hi2 + 0.5 * stepSize), expand = c(0, 0))
+      ))
+  print(g)
+}
+
+showLine = function(feature1, feature2)
+{
+  # which values to evaluate the numeric feature
+  evalNumAt = sort(unique(rawData[, feature1]))
+  if (length(evalNumAt) > 101)
+  {
+    # range of values
+    lo1 = min(rawData[, feature1], na.rm = TRUE)
+    lo2 = min(rawData[, feature2], na.rm = TRUE)
+  
+    # create a grid that will be scored and plotted
+    resolution = 101
+    evalNumAt = lo1 + (hi1 - lo1) * (seq_len(resolution) - 1) / (resolution - 1)
+  }
+
+  # which values to evaluate the character feature
+  evalCharAt = sort(unique(c(rawData[, feature2])))
+  
+  # combine them
+  numGrid = expand.grid(x = evalNumAt, groupBy = evalCharAt)
+
+  # link the grid to the sample data
+  small$join = 'aaaaa'
+  numGrid$join = 'aaaaa'
+  toScore = merge(small, numGrid, by = 'join')
+  toScore[, feature1] = toScore$x
+  toScore[, feature2] = toScore$groupBy
+  toScore$x = NULL
+  toScore$groupBy = NULL
+  toScore$join = NULL
+  toScore$Exposure = 1
+  
+  toScore$Prediction = Inf
+
+  # don't get any more than 5000 predictions at a time
+  nPosts = ceiling(nrow(toScore) / 5000)
+  line1 = 1
+  line2 = 0
+  for (iPost in seq_len(nPosts))
+  {
+    line1 = line2 + 1
+    line2 = min(nrow(toScore), round(iPost / nPosts * nrow(toScore)))
+
+    # upload the data and do some scoring
+    url = paste0('http://', server, '/api/v1/', projectID, '/', modelID, '/predict')
+    if (usehttps) url = gsub('http://', 'https://', url, fixed = TRUE)
+    myRequest = httr::POST(url,
+                       add_headers("datarobot-key" = drKey),
+                       c(authenticate(username, apiToken)),
+                       body = rjson::toJSON(unname(split(toScore[line1:line2,], 1:nrow(toScore[line1:line2,])))), 
+                       httr::content_type_json())
+
+    response = jsonlite::fromJSON(content(myRequest, as = 'text', encoding = 'UTF-8'))
+    httpCode = response$code
+    if (httpCode != 200)
+    {
+      stop(paste0("Call to prediction server failed with HTTP code: ", httpCode))
+    } else {
+      executionTime = response$execution_time
+      predictions = response$predictions
+      predictions = predictions[order(predictions$row_id),]
+      toScore$Prediction[line1 + predictions$row_id] = predictions$prediction
+    }
+  }
+  toScore$Prediction[is.infinite(toScore$Prediction)] = NA
+  
+  # summarise the results
+  plotData = ddply(toScore, c(feature1, feature2),
+                   function(X) data.frame(
+                     Relativity = mean(X$Prediction),
+                     stringsAsFactors = FALSE
+                   ))
+  plotData$Relativity = plotData$Relativity / mean(plotData$Relativity)
+  names(plotData) = c('x', 'group', 'Relativity')
+
+  # plot the data
+  g = ggplot(plotData, aes(x = x, y = Relativity, group = group, colour = group)) + geom_line() +
+    xlab(feature1) + ylab('Relativities') + theme_igray() +
+    scale_y_continuous(labels = scales::percent) + 
+    labs(colour=feature2) +
+    ggtitle(paste0('Interactions - ', feature1, ' vs. ', feature2)) + theme(plot.title = element_text(hjust = 0.5))
+  print(g)
+}
+```
+
+
+# Loop through each feature pair and show the 2-way model x-ray
+```{r}
+for (r1 in seq_len(nrow(featurePairs)))
+{
+  feature1 = featurePairs$x[r1]
+  feature2 = ifelse(is.na(featurePairs$y[r1]), featurePairs$groupBy[r1], featurePairs$y[r1])
+  class1 = class(rawData[, feature1])
+  class2 = class(rawData[, feature2])
+  if (class1 == "integer") class1 = "numeric"
+  if (class2 == "integer") class2 = "numeric"
+  
+  for (r2 in seq_len(nrow(modelList)))
+  {
+    projectID = modelList$projectID[r2]
+    modelID = modelList$modelID[r2]
+    
+    if (featurePairs$plot[r1] == 'Map') showMap(feature1, feature2)
+    if (featurePairs$plot[r1] == 'Line') showLine(feature1, feature2)
+  }
+}
+```
+

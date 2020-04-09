@@ -16,3 +16,5 @@ bak/*
 */*.zip
 *.log
 */*.log
+*.history
+*/*..history

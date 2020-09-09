@@ -10,9 +10,9 @@ import pandas as pd
 
 # can grab all this from the Integrations tab
 # TODO move to config file or add cli
-API_TOKEN =  '-tthMRg4-sXF21D7FTQYxfUAMZSGWqvs' 
-USERNAME = 'aengel@datarobot.com' 
-DATAROBOT_KEY = '544ec55f-61bf-f6ee-0caf-15c7f919a45d'  
+USERNAME = os.environ['DATAROBOT_USERNAME']
+API_TOKEN = os.environ['DATAROBOT_API_TOKEN']
+DATAROBOT_KEY = os.environ['DATAROBOT_DATAROBOT_KEY']
 headers = {'Content-Type': 'application/json', 'datarobot-key': DATAROBOT_KEY}
 
 
@@ -53,7 +53,7 @@ DELAY_MAX = 12
 
 
 # NOTE change cycle_start to be an explict date if you stop + start the script but want to maintain the cycles.
-# using utcnow() will start the cycle over again 
+# using utcnow() will start the cycle over again
 # start = datetime.datetime.utcnow()
 start = datetime.datetime(2018, 9, 18)
 end = start + datetime.timedelta(days=cycles)
@@ -93,4 +93,3 @@ while now < end:
     sleep = random.uniform(DELAY_MIN, DELAY_MAX)
     time.sleep(sleep)
     now = datetime.datetime.utcnow()
-

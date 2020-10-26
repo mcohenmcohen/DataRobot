@@ -1,0 +1,314 @@
+{
+ "cells": [
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import datarobot as dr #2.21.1\n",
+    "import time"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "path = \"/Users/joao/Desktop/SAFER demos/lending_club_SAFER/\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "primary_dataset = dr.Dataset.create_from_file(file_path= path + 'train.csv')\n",
+    "project = dr.Project.create_from_dataset(primary_dataset.id, project_name='Lending Club API')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "profile_dataset = dr.Dataset.create_from_file(file_path= path +'profile.csv')\n",
+    "transaction_dataset = dr.Dataset.create_from_file(file_path= path + 'transactions.csv')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "profile_catalog_id = profile_dataset.id\n",
+    "profile_catalog_version_id = profile_dataset.version_id\n",
+    "\n",
+    "transac_catalog_id = transaction_dataset.id\n",
+    "transac_catalog_version_id = transaction_dataset.version_id\n",
+    "\n",
+    "dataset_definitions = [\n",
+    "    {\n",
+    "        'identifier': 'transaction',\n",
+    "        'catalogVersionId': transac_catalog_version_id,\n",
+    "        'catalogId': transac_catalog_id,\n",
+    "        'primaryTemporalKey': 'Date',\n",
+    "        'snapshotPolicy': 'latest',\n",
+    "    },\n",
+    "    {\n",
+    "        'identifier': 'profile',\n",
+    "        'catalogId': profile_catalog_id,\n",
+    "        'catalogVersionId': profile_catalog_version_id,\n",
+    "        'snapshotPolicy': 'latest',\n",
+    "    },\n",
+    "]\n",
+    "\n",
+    "relationships = [\n",
+    "    {\n",
+    "        'dataset2Identifier': 'profile',\n",
+    "        'dataset1Keys': ['CustomerID'],\n",
+    "        'dataset2Keys': ['CustomerID'],\n",
+    "        'featureDerivationWindowStart': -14,\n",
+    "        'featureDerivationWindowEnd': -1,\n",
+    "        'featureDerivationWindowTimeUnit': 'DAY',\n",
+    "        'predictionPointRounding': 1,\n",
+    "        'predictionPointRoundingTimeUnit': 'DAY',\n",
+    "    },\n",
+    "    {\n",
+    "        'dataset1Identifier': 'profile',\n",
+    "        'dataset2Identifier': 'transaction',\n",
+    "        'dataset1Keys': ['CustomerID'],\n",
+    "        'dataset2Keys': ['CustomerID'],\n",
+    "    },\n",
+    "]\n",
+    "\n",
+    "# Create the relationships configuration to define connection between the datasets\n",
+    "relationship_config = dr.RelationshipsConfiguration.create(dataset_definitions=dataset_definitions, relationships=relationships)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "In progress: 2, queued: 22 (waited: 0s)\n",
+      "In progress: 2, queued: 22 (waited: 2s)\n",
+      "In progress: 2, queued: 22 (waited: 5s)\n",
+      "In progress: 2, queued: 22 (waited: 6s)\n",
+      "In progress: 2, queued: 22 (waited: 9s)\n",
+      "In progress: 2, queued: 22 (waited: 13s)\n",
+      "In progress: 2, queued: 22 (waited: 18s)\n",
+      "In progress: 2, queued: 22 (waited: 25s)\n",
+      "In progress: 2, queued: 21 (waited: 40s)\n",
+      "In progress: 2, queued: 21 (waited: 61s)\n",
+      "In progress: 2, queued: 19 (waited: 83s)\n",
+      "In progress: 2, queued: 19 (waited: 105s)\n",
+      "In progress: 2, queued: 17 (waited: 126s)\n",
+      "In progress: 2, queued: 16 (waited: 147s)\n",
+      "In progress: 2, queued: 15 (waited: 169s)\n",
+      "In progress: 2, queued: 14 (waited: 190s)\n",
+      "In progress: 2, queued: 13 (waited: 212s)\n",
+      "In progress: 15, queued: 0 (waited: 234s)\n",
+      "In progress: 15, queued: 0 (waited: 257s)\n",
+      "In progress: 12, queued: 0 (waited: 278s)\n",
+      "In progress: 7, queued: 0 (waited: 300s)\n",
+      "In progress: 7, queued: 0 (waited: 321s)\n",
+      "In progress: 6, queued: 0 (waited: 342s)\n",
+      "In progress: 5, queued: 0 (waited: 367s)\n",
+      "In progress: 4, queued: 0 (waited: 390s)\n",
+      "In progress: 3, queued: 0 (waited: 411s)\n",
+      "In progress: 2, queued: 0 (waited: 432s)\n",
+      "In progress: 2, queued: 0 (waited: 454s)\n",
+      "In progress: 1, queued: 0 (waited: 475s)\n",
+      "In progress: 1, queued: 0 (waited: 496s)\n",
+      "In progress: 0, queued: 0 (waited: 518s)\n",
+      "In progress: 0, queued: 0 (waited: 539s)\n",
+      "In progress: 0, queued: 0 (waited: 561s)\n",
+      "In progress: 0, queued: 0 (waited: 582s)\n",
+      "In progress: 0, queued: 0 (waited: 604s)\n",
+      "In progress: 1, queued: 0 (waited: 625s)\n",
+      "In progress: 1, queued: 0 (waited: 646s)\n",
+      "In progress: 1, queued: 0 (waited: 667s)\n",
+      "In progress: 1, queued: 0 (waited: 688s)\n",
+      "In progress: 1, queued: 0 (waited: 709s)\n",
+      "In progress: 1, queued: 0 (waited: 730s)\n",
+      "In progress: 1, queued: 0 (waited: 753s)\n",
+      "In progress: 0, queued: 0 (waited: 774s)\n",
+      "In progress: 0, queued: 0 (waited: 795s)\n",
+      "In progress: 0, queued: 0 (waited: 816s)\n",
+      "In progress: 0, queued: 0 (waited: 838s)\n",
+      "In progress: 0, queued: 0 (waited: 859s)\n"
+     ]
+    }
+   ],
+   "source": [
+    "partitioning_spec = dr.DatetimePartitioningSpecification('date')\n",
+    "project.set_target(target='BadLoan', relationships_configuration_id=relationship_config.id, partitioning_method=partitioning_spec)\n",
+    "project.wait_for_autopilot()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# prepare to get predictions for test set\n",
+    "dataset = project.upload_dataset(path +\"test.csv\")\n",
+    "\n",
+    "model = dr.ModelRecommendation.get(\n",
+    "    project.id,\n",
+    "    dr.enums.RECOMMENDED_MODEL_TYPE.RECOMMENDED_FOR_DEPLOYMENT\n",
+    ").get_model()\n",
+    "\n",
+    "pred_job = model.request_predictions(dataset.id)\n",
+    "preds = pred_job.get_result_when_complete()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>prediction_threshold</th>\n",
+       "      <th>prediction</th>\n",
+       "      <th>row_id</th>\n",
+       "      <th>positive_probability</th>\n",
+       "      <th>class_No</th>\n",
+       "      <th>class_Yes</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>0.5</td>\n",
+       "      <td>No</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0.088004</td>\n",
+       "      <td>0.911996</td>\n",
+       "      <td>0.088004</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>0.5</td>\n",
+       "      <td>No</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0.205779</td>\n",
+       "      <td>0.794221</td>\n",
+       "      <td>0.205779</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>0.5</td>\n",
+       "      <td>No</td>\n",
+       "      <td>2</td>\n",
+       "      <td>0.220052</td>\n",
+       "      <td>0.779948</td>\n",
+       "      <td>0.220052</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>0.5</td>\n",
+       "      <td>No</td>\n",
+       "      <td>3</td>\n",
+       "      <td>0.032965</td>\n",
+       "      <td>0.967035</td>\n",
+       "      <td>0.032965</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>0.5</td>\n",
+       "      <td>No</td>\n",
+       "      <td>4</td>\n",
+       "      <td>0.037288</td>\n",
+       "      <td>0.962712</td>\n",
+       "      <td>0.037288</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   prediction_threshold prediction  row_id  positive_probability  class_No  \\\n",
+       "0                   0.5         No       0              0.088004  0.911996   \n",
+       "1                   0.5         No       1              0.205779  0.794221   \n",
+       "2                   0.5         No       2              0.220052  0.779948   \n",
+       "3                   0.5         No       3              0.032965  0.967035   \n",
+       "4                   0.5         No       4              0.037288  0.962712   \n",
+       "\n",
+       "   class_Yes  \n",
+       "0   0.088004  \n",
+       "1   0.205779  \n",
+       "2   0.220052  \n",
+       "3   0.032965  \n",
+       "4   0.037288  "
+      ]
+     },
+     "execution_count": 8,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "preds.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "covid-simulator",
+   "language": "python",
+   "name": "covid-simulator"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.7"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}

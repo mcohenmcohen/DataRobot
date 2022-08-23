@@ -1,0 +1,19 @@
+git checkout release/2.8
+git fetch && git rebase
+git branch -D zam/MBP-810-2.8
+git checkout -b zam/MBP-810-2.8
+git cherry-pick fab266641d03c4646612fa7e97c3e5eea5295bad
+git status
+git checkout --theirs tests/testdata/fixtures/allstate-leaderboard-item-fixture-V2.json
+git checkout --theirs tests/testdata/fixtures/allstate-leaderboard-item-fixture.json
+git checkout --theirs tests/ModelingMachine/test_lift.py
+git checkout --theirs ModelingMachine/engine/lift.py
+atom tests/common/test_prime_service.py
+git add tests/testdata/fixtures/allstate-leaderboard-item-fixture-V2.json
+git add tests/testdata/fixtures/allstate-leaderboard-item-fixture.json
+git add tests/common/test_prime_service.py
+git add tests/ModelingMachine/test_lift.py
+git add ModelingMachine/engine/lift.py
+git cherry-pick --continue
+git push --set-upstream origin zam/MBP-810-2.8
+git_pr_link release/2.8

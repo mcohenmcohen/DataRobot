@@ -1,0 +1,19 @@
+# test stuff for image augmentations
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/category_cols.csv
+  target: sq_ft
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/geo_cols.csv
+  target: sq_ft
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/image_cols.csv
+  target: sq_ft
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/mixed.csv
+  target: sq_ft
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/num_cols.csv
+  target: sq_ft
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/text_cols.csv
+  target: sq_ft

@@ -1,0 +1,240 @@
+---
+title: "10k Diabetes Clustering"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Helper functions
+```{r}
+bin_numeric <- function(x){
+  bins <- 3
+  pctiles <- 1:(bins-1) * 1 / (bins)
+  set.seed(42)
+  x <- x + runif(length(x)) * 1e-6
+  breaks <- quantile(x, c(0, pctiles, 1))
+  x_binned <- cut(x, breaks, include.lowest = TRUE)
+  levels(x_binned) <- c('low', 'med', 'high')
+  if(anyNA(x)){
+    x_binned <- addNA(x_binned, ifany = TRUE)
+    levels(x_binned) <- c('low', 'med', 'high', 'UNK')
+  }
+  as.character(x_binned)
+}
+cluster_plot <- function(x, y, c){
+  library(ggplot2)
+  plotdat <- data.table(x, y, cluster=c)
+  plotdat[,cluster := factor(cluster)]
+  colors <- c(
+    "#1f78b4", "#ff7f00", "#6a3d9a", "#33a02c", "#e31a1c", "#b15928",
+    "#a6cee3", "#fdbf6f", "#cab2d6", "#b2df8a", "#fb9a99", "#ffff99", "black",
+    "grey"
+  )
+  colors <- rep(colors, 100)
+  ggplot(plotdat, aes(x=x, y=y, color=cluster)) +
+    geom_point() + theme_bw() + 
+    scale_color_manual(values=colors)
+}
+fast_mode <- function(x){
+  library(data.table)
+  out <- data.table(x, key='x')
+  out <- out[,list(.N), by='x']
+  setorder(out, -N, x)
+  return(out[1,x])
+}
+cluster_summary <- function(dt, c, bin=TRUE){
+  library(data.table)
+  library(stringi)
+  
+  dat <- copy(dt)
+  is_num <- sapply(dat, is.numeric)
+  nums <- names(dat)[is_num]
+  chars <- names(dat)[!is_num]
+  
+  if(bin){
+    for(var in nums){
+      set(dat, j=var, value=bin_numeric(dat[[var]]))
+    }
+    chars <- names(dat)
+  }
+  
+  dat <- data.table(dat, cluster=c)
+  num_dat <- dat[,c(nums, 'cluster'), with=FALSE]
+  char_dat <- dat[,c(chars, 'cluster'), with=FALSE]
+  setkeyv(num_dat, 'cluster')
+  setkeyv(char_dat, 'cluster')
+  
+  means <- num_dat[,c(lapply(.SD, function(x) round(mean(x), 1))), by='cluster']
+  modes <- char_dat[,lapply(.SD, fast_mode), by='cluster']
+  overall <- char_dat[,list(.N), by='cluster']
+  
+  stopifnot(means[['cluster']] == modes[['cluster']])
+  cluster <- means[['cluster']]
+  means[, cluster := NULL]
+  modes[, cluster := NULL]
+  overall[, cluster := NULL]
+
+  means <- means[,order(sapply(means, sd), decreasing=TRUE),with=FALSE]
+  modes <- modes[,order(sapply(modes, function(x) length(unique(x))), decreasing=TRUE),with=FALSE]
+  
+  mean_of_means <- sapply(means, mean)
+  sd_of_means <- sapply(means, sd)
+  mode_of_modes <- sapply(modes, fast_mode)
+  
+  mean_labels <- apply(means, 1, function(x){
+    labels <- paste(names(x), x, sep='=')
+    above <- x > mean_of_means + sd_of_means
+    below <- x < mean_of_means - sd_of_means
+    either <- above | below
+    diff <- abs(x-mean_of_means)
+    order <- order(diff, decreasing=TRUE)
+    labels <- labels[order]
+    either <- either[order]
+    out <- paste(labels[either], collapse='; ')
+    return(out)
+  })
+  
+  mode_labels <- apply(modes, 1, function(x){
+    labels <- paste(names(x), x, sep='=')
+    keep <- x != mode_of_modes
+    out <- paste(labels[keep], collapse='; ')
+    return(out)
+  })
+  
+  if(bin){
+    labels <- mode_labels
+  } else{
+    labels <- paste(mean_labels, mode_labels)
+  }
+  labels <- stri_trim_both(labels)
+
+  out <- data.table(
+    cluster = factor(cluster, labels=labels),
+    overall,
+    means,
+    modes
+  )
+  keep <- sapply(out, function(x) length(unique(x))) > 1
+  out <- out[,keep,with=FALSE]
+  setorder(out, -N)
+  
+  return(out)
+}
+
+cluster_outliers <- function(dat, c){
+}
+
+tune_with_kmeans <- function(d, c){
+  centers <- data.table(d, cluster=c, key='cluster')
+  centers <- centers[,lapply(.SD, mean), by='cluster']
+  centers[,cluster := NULL]
+  kmeans(d, as.matrix(centers), iter.max=1)
+}
+
+```
+
+## Load the data
+```{r, cache=TRUE}
+library(data.table)
+db <- fread('https://s3.amazonaws.com/datarobot_data_science/test_data/10k_diabetes_train80.csv')
+keep <- sapply(db, function(x) length(unique(x))) > 1
+db <- db[,keep,with=FALSE]
+text <- c('diag_1_desc', 'diag_2_desc', 'diag_3_desc')
+db <- db[,setdiff(names(db), c(text, 'readmitted')), with=FALSE]
+```
+
+## Pre-process non-text
+```{r, warning=FALSE, results='hide'}
+library(Matrix)
+db_matrix <- sparse.model.matrix(~ 0 + ., db)
+db_matrix[1:10,1:7]
+```
+
+```{r, echo=FALSE}
+knitr::kable(as.matrix(db_matrix[1:10,1:7]))
+```
+
+## SVD on the sparse matrix
+```{r, results='hide', warning=FALSE, cache=TRUE}
+library(RSpectra)
+library(irlba)
+svd_model <- irlba(db_matrix, nu=min(ncol(db), nrow(db), 50), nv=0, verbose=TRUE, center=colMeans(db_matrix))
+pca <- svd_model$u
+colnames(pca) <- paste0('pc', 1:ncol(pca))
+pca[1:5, 1:5]
+```
+```{r, echo=FALSE}
+knitr::kable(as.matrix(pca[1:5, 1:5]))
+```
+
+## kmeans
+```{r, warning=FALSE, cache=TRUE, results='hide'}
+library(fpc)
+set.seed(42)
+kmeans <- kmeansruns(pca, critout=TRUE, criterion='ch', krange=3)
+clust <- kmeans$cluster
+table(clust)
+cluster_plot(pca[,1], pca[,2], clust)
+```
+
+## tsne + kmeans
+```{r, warning=FALSE, cache=TRUE, results='hide'}
+library(Rtsne)
+library(ggplot2)
+library(scales)
+set.seed(42)
+tsne <- Rtsne(pca, 2, pca=FALSE, check_duplicates=FALSE, verbose=TRUE)
+```
+```{r, warning=FALSE, cache=TRUE, results='hide'}
+km2 <- kmeansruns(tsne$Y, critout=TRUE, criterion='ch', krange=45:50)
+clust <- km2$cluster
+cluster_plot(tsne$Y[,1], tsne$Y[,2], clust)
+```
+
+## tsne + pam
+```{r, warning=FALSE, cache=TRUE, results='hide'}
+pam <- pamk(tsne$Y, criterion="asw", critout=TRUE, usepam=FALSE, krange=2:50)
+clust <- pam$pamobject$clustering
+cluster_plot(tsne$Y[,1], tsne$Y[,2], clust)
+```
+
+## tsne + dbscan (cluster 0 is outliers)
+```{r, warning=FALSE, cache=TRUE, results='hide'}
+library(dbscan)
+dbs <- dbscan::dbscan(tsne$Y, 2.40, minPts=45, splitRule='suggest', borderPoints=TRUE)
+clust <- dbs$cluster
+cluster_plot(tsne$Y[,1], tsne$Y[,2], clust)
+cluster_summary(db, clust, bin=TRUE)
+```
+
+## tsne + dbscan + kmeans
+```{r, warning=FALSE, cache=TRUE, results='hide'}
+set.seed(42)
+dbscan_kmeans <- tune_with_kmeans(tsne$Y, dbs$cluster)
+clust <- dbscan_kmeans$cluster
+cluster_plot(tsne$Y[,1], tsne$Y[,2], clust)
+```
+
+## tsne + optics (cluster 0 is outliers)
+```{r, warning=FALSE, cache=TRUE, results='hide'}
+library(dbscan)
+opt <- dbscan::optics(tsne$Y, eps=5, minPts=100)
+opt <- optics_cut(opt, eps_cl = 3.25)
+plot(opt)
+hullplot(tsne$Y, opt)
+clust <- opt$cluster
+table(clust)
+cluster_plot(tsne$Y[,1], tsne$Y[,2], clust)
+```
+
+## tsne + optics + kmeans
+```{r, warning=FALSE, cache=TRUE, results='hide'}
+set.seed(42)
+dbscan_kmeans <- tune_with_kmeans(tsne$Y, opt$cluster)
+clust <- dbscan_kmeans$cluster
+cluster_plot(tsne$Y[,1], tsne$Y[,2], clust)
+#cluster_summary(db, clust, bin=TRUE)
+```
+
+## outliers

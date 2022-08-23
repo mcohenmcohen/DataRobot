@@ -1,0 +1,27 @@
+# take 1
+
+min_weight = (min_count + maj_count * rate) / row_count
+
+maj_weight = (min_count + new_maj_count) / (rate * row_count)
+
+
+((min_count + new_maj_count) / (rate * row_count)) / ((min_count + maj_count * rate) / row_count)
+
+((min_count + new_maj_count) / (rate * row_count)) * (row_count / (min_count + maj_count * rate))
+
+(((min_count + new_maj_count)) / (rate * (min_count + maj_count * rate)))
+
+
+(new_row_count / (rate * row_count * rate))  # messed up somewhere lol
+
+# take 2
+min_weight = new_row_count / row_count
+maj_weight = new_row_count / (rate * row_count)
+(new_row_count / (rate * row_count)) / (new_row_count / row_count)
+(new_row_count / (rate * row_count)) * (row_count / new_row_count)
+(new_row_count * row_count) / (rate * row_count * new_row_count)
+(new_row_count) / (rate * new_row_count)
+
+(1) / (rate)
+
+1 / rate # That seems correct

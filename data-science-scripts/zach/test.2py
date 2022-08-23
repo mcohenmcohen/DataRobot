@@ -1,0 +1,50 @@
+# -*- coding: utf-8 -*-
+#########################################################
+#
+# Unit Test for text converters
+#
+# Author: Joshua Loyal
+#
+#       Copyright DataRobot, Inc. 2015
+#
+########################################################
+from __future__ import division
+from __future__ import unicode_literals
+
+import os
+import itertools
+import unittest
+import random
+
+import numpy as np
+import pandas
+import pandas as pd
+from pickle import dumps, loads
+from scipy.stats import norm
+from binascii import hexlify
+import pytest
+
+from ModelingMachine.engine.modeling_data import create_modeling_data, create_task_data
+from ModelingMachine.engine.modeling_data import subset_data
+from ModelingMachine.engine.partition import Partition
+from ModelingMachine.engine.tasks2.text_converters import SingleColumnText, SingleColumnText2
+from ModelingMachine.engine.tasks2.text_converters import TfIdf2, TfIdf3
+from ModelingMachine.engine.tasks2.text_converters import VWConverter, VWConverter2
+from ModelingMachine.engine.tasks2.nlp import char_preprocessor
+from ModelingMachine.engine.tasks2.stopwords import SUPPORTED_STOPWORD_LANGUAGES
+from ModelingMachine.engine.tasks2.nlp import SUPPORTED_SNOWBALL_LANGUAGES
+from ModelingMachine.engine.tasks2.nlp import char_preprocessor
+from ModelingMachine.engine.tasks2.nlp import Preprocessor
+from ModelingMachine.engine.tasks2.japNLP import TinySegmenter
+from ModelingMachine.engine.modeling_data import subset_data
+from ModelingMachine.engine.modeling_data import create_modeling_data, create_task_data
+from ModelingMachine.engine.partition import Partition
+from ModelingMachine.engine.code_generation.code_generator import CodeGenerator
+from tests.functional.synth_dataset import RichSeries
+from common.services.transparent_models import Transformation, ModelParameter
+from common.exceptions import VersionUnsupportedError
+from common.enum import TaskMethod
+from tests.tasks2.base_task_test import BaseTaskTest
+
+
+TESTDATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../testdata')

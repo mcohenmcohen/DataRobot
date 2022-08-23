@@ -1,0 +1,10 @@
+library(ggplot2)
+set.seed(42)
+N <- 1e5
+y <- runif(N, 0, 1e9)
+y_log <- log1p(y)
+p_log <- y_log + rnorm(N, 0, 1)
+p <- expm1(p_log)
+dat <- data.frame(y, y_log, p_log, p)
+ggplot(dat, aes(x=y, y=p)) + geom_point() + geom_smooth() + theme_bw() + coord_cartesian()
+ggplot(dat, aes(x=y_log, y=p_log)) + geom_point() + geom_smooth() + theme_bw() + coord_cartesian()

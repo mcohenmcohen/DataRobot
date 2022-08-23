@@ -1,0 +1,37 @@
+import numpy as np
+import numpy.testing as npt
+import skflow
+from skflow.tests.tensorflow_test import get_periodic_with_nonlin_trend, get_periodic_with_lin_trend
+from skflow.models import elasticnet_linear_regression
+
+np.random.seed(222)
+X, Y = get_periodic_with_lin_trend(0.0, 100, 10000)
+dnn = skflow.models.neural_decomposition(
+    elasticnet_linear_regression(l1=1),
+    n_fourier_terms=8,  # Real function has 3
+    n_hidden_nonlin_units=4,
+    freq_regularizer=None,
+    nonlin_W_init='zero',
+    freq_init='he_uniform',  # he_uniform, fourier_frequencies
+    phase_init='he_uniform',  # he_uniform, fourier_phases
+    log_trend=False)  # Real function has 0
+regressor = skflow.TensorFlowEstimator(
+    dnn, n_classes=0, optimizer='L-BFGS-B',
+    second_order_max_iter=10, batch_size=10000, use_basin_hopping=False)
+regressor.fit(X, Y)
+
+
+library(xgboost)
+data(agaricus.train, package='xgboost')
+data(agaricus.test, package='xgboost')
+train <- agaricus.train
+test <- agaricus.test
+params <- list(
+  max.depth=2,
+  eta=.1,
+  objective = "binary:logistic",
+  verbose=TRUE,
+	tree_method='hist',
+  updater='grow_fast_histmaker'
+)
+bstSparse <- xgb.cv(params, data = train$data, label = train$label, nthread = 2, nround = 2, nfold=10)

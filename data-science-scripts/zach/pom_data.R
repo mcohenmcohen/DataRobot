@@ -1,0 +1,15 @@
+library(data.table)
+library(httr)
+library(XML)
+library(pbapply)
+httr::set_config(config(ssl_verifypeer = 0L))
+base_url = 'http://kenpom.com/index.php?y='
+dat_list <- pblapply(2003:2018, function(x){
+  Sys.sleep(1)
+  r <- GET(paste0(base_url, x))
+  out <- readHTMLTable(as.character(content(r)), stringAsFactors=FALSE)
+  out <- data.table(Season=x, out[[1]])
+  return(out)
+})
+dat = rbindlist(dat_list)
+fwrite(dat, '~/datasets/pomdata.csv')

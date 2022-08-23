@@ -1,0 +1,43 @@
+mv /tmp/pred.npy ~/pred.npy
+mv /tmp/act.npy ~/act.npy
+mv /tmp/weight.npy ~/weight.npy
+
+chmod u+rwx,g+rwx,o+rx ~/pred.npy
+chmod u+rwx,g+rwx,o+rx ~/act.npy
+chmod u+rwx,g+rwx,o+rx ~/weight.npy
+
+n=100
+n_span=20
+scale_factor=1.0
+max_resolution=10000
+round_off=True
+
+pred = np.load('/home/ubuntu/pred.npy')
+act = np.load('/home/ubuntu/act.npy')
+weight = np.load('/home/ubuntu/weight.npy')
+
+act = np.load('/home/ubuntu/act.npy')
+pred = act + np.random.uniform(-0.00001, 0.00001, size=act.shape[0])
+weight = np.ones(act.shape)
+
+pred = np.load('/home/ubuntu/pred.npy')
+act = np.load('/home/ubuntu/act.npy')
+weight = np.load('/home/ubuntu/weight.npy')
+
+thresholds = np.load('/home/ubuntu/thresholds.npy')
+sampled_pred = np.load('/home/ubuntu/sampled_pred.npy')
+
+pred = np.load('/home/ubuntu/pred2.npy')
+act = np.load('/home/ubuntu/act2.npy')
+thresholds = np.load('/home/ubuntu/thresholds2.npy')
+sampled_pred = np.load('/home/ubuntu/sampled_pred2.npy')
+
+pred = np.load('/tmp/pred.npy')
+act = np.load('/tmp/act.npy')
+thresholds = np.load('/tmp/thresholds.npy')
+sampled_pred = np.load('/tmp/sampled_pred.npy')
+
+2664645
+2664644
+2664643
+2664640

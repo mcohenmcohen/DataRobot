@@ -1,0 +1,79 @@
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/DR_Demo_LendingClub_Guardrails.csv
+  target: is_bad
+  target_type: Binary
+  leaky_features:
+  - loan_status
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/leakage/phone_gender_narrow_leak.csv
+  target: gender
+  target_type: Binary
+  leaky_features:
+  - group
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/leakage/Motorcycle_insurance_claims_leak.csv
+  target: TotalClaimCost
+  target_type: Regression
+  leaky_features:
+  - ClaimCounts
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/diamonds_80.csv
+  target: price
+  target_type: Regression
+  leaky_features:
+  - carat
+  - "Unnamed: 0"
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/leakage/shot_logs.csv
+  target: SHOT_RESULT
+  target_type: Binary
+  leaky_features:
+  - FGM
+  - PTS
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/leakage/prep_data_20180317_leak.csv
+  target: Target
+  target_type: Regression
+  leaky_features:
+  - Avg_WITHDRAW_24DEC2017_31DEC2017
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/leakage/Anomaly-KDDTrain20.csv
+  target: target
+  target_type: Binary
+  leaky_features:
+  - type
+  - src_bytes
+  - service
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/leakage/flight_delay_data_50k(hashed).csv
+  target: DELAY_INDICATOR
+  target_type: Binary
+  leaky_features:
+  - DELAY_CODE
+  - DELAY_CODE_DESCRIPTION
+
+- dataset_name: https://datarobot-private-datasets-nonredistributable.s3.amazonaws.com/auto_loan_isbad_utf_clean.csv
+  target: LOAN_BAD_IND
+  target_type: Binary
+  leaky_features:
+  - CURRACCTSTATCD
+  - CLOSEDDATE
+
+- dataset_name: https://datarobot-private-datasets-nonredistributable.s3.amazonaws.com/Ito_Yokado_sku_sample350MB.csv
+  target: last_DOW_sales_price
+  target_type: Regression
+  leaky_features:
+  - kia_sales_price
+  - kia_original_price
+  - store_price
+  - "kia_SKU code"
+  - store_SKU_code
+
+# airlines dataset under consideration as dataset containing potential leaky features
+# - dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/airlines_10gb_0.05.csv
+# or
+# - dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/AirlineFlights2008-reduced-35000_80.csv
+#   target: ArrDelay
+#   target_type: Regression
+#   leaky_features:
+#   - ArrTime
+#   - (ArrTime) MINUS (DepTime) [requires SAFER aka Feature Discovery feature flags]

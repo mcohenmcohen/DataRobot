@@ -1,0 +1,123 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Step one: Make the dataset
+```{r}
+library(data.table)
+regular_season <- fread('data/RegularSeasonCompactResults.csv')
+regular_season[,score_diff := WScore - LScore]
+regular_season_1 <- regular_season[,list(season=Season, teamid_1=WTeamID, teamid_2=LTeamID, score_diff)]
+regular_season_2 <- regular_season[,list(season=Season, teamid_1=LTeamID, teamid_2=WTeamID, score_diff=-1*score_diff)]
+regular_season <- rbind(regular_season_1, regular_season_2)
+```
+
+# Step two: By-year point difference model
+```{r}
+library(pbapply)
+tourney <- fread('data/NCAATourneyCompactResults.csv')
+tourney_1 <- tourney[,list(season=Season, teamid_1=WTeamID, teamid_2=LTeamID, won=1)]
+tourney_2 <- tourney[,list(season=Season, teamid_1=LTeamID, teamid_2=WTeamID, won=0)]
+tourney <- rbind(tourney_1, tourney_2)
+
+for(year in sort(unique(tourney$season))){
+
+	# Train
+	print(year)
+	training_data <- regular_season[season == year,]
+	uniq_teams <- training_data[,sort(unique(c(teamid_1, teamid_2)))]
+	training_data[,team1 := factor(teamid_1, levels=uniq_teams)]
+	training_data[,team2 := factor(teamid_2, levels=uniq_teams)]
+
+	team_1_matrix_train <- model.matrix(~ 0 + team1, training_data)
+	team_2_matrix_train <- model.matrix(~ 0 + team2, training_data)
+	team_matrix_train <- team_1_matrix_train - team_2_matrix_train
+
+	team_data_train <- data.table(score_diff=training_data[,score_diff], team_matrix_train)
+	model <- glm(score_diff ~ 0 + ., data=team_data_train, family='gaussian')
+
+	# Test
+	testing_data <- tourney[season == year,]
+	testing_data[,team1 := factor(teamid_1, levels=uniq_teams)]
+	testing_data[,team2 := factor(teamid_2, levels=uniq_teams)]
+
+	team_1_matrix_test <- model.matrix(~ 0 + team1, testing_data)
+	team_2_matrix_test <- model.matrix(~ 0 + team2, testing_data)
+	team_matrix_test <- data.table(team_1_matrix_test - team_2_matrix_test)
+
+	team_data_test <- data.table(team_matrix_test)
+	tourney[season == year, pred_score_diff := predict(model, team_matrix_test)]
+}
+```
+
+# Step three: Add seed diffs
+```{r}
+seeds <- fread('data/NCAATourneySeeds.csv')
+seeds[,seed := as.integer(gsub('[[:alpha:]]', '', Seed))]
+seeds_1 <- seeds[,list(season=Season, teamid_1=TeamID, seed1=seed)]
+seeds_2 <- seeds[,list(season=Season, teamid_2=TeamID, seed2=seed)]
+
+tourney <- merge(tourney, seeds_1, by=c('season', 'teamid_1'))
+tourney <- merge(tourney, seeds_2, by=c('season', 'teamid_2'))
+
+tourney[,seed_diff := seed1 - seed2]
+tourney[,c('seed1', 'seed2') := NULL]
+```
+
+# Step 4: Add team names
+```{r}
+teams <- fread('data/Teams.csv')
+teams_1 <- teams[,list(teamid_1 = TeamID, team1=TeamName)]
+teams_2 <- teams[,list(teamid_2 = TeamID, team2=TeamName)]
+
+tourney <- merge(tourney, teams_1, by='teamid_1')
+tourney <- merge(tourney, teams_2, by='teamid_2')
+
+tourney[,team1 := paste(season, team1)]
+tourney[,team2 := paste(season, team2)]
+
+tourney <- tourney[,list(season, team1, team2, won, pred_score_diff, seed_diff)]
+
+write.csv(tourney, '~/datasets/madness_simple.csv', row.names=FALSE)
+```
+
+# Step 5: Send to DataRobot
+```{r}
+library('datarobot')  # Should automatically connect
+project <- SetupProject(dataSource=tourney, projectName = 'Mens Tournament')
+up <- UpdateProject(project, workerCount = 20, holdoutUnlocked = TRUE)
+f1 <- CreateFeaturelist(
+  project=project,
+  listName='f1',
+  featureNames=c('pred_score_diff', 'seed_diff')
+)
+partition <- CreateGroupPartition(
+  validationType='CV',
+  holdoutPct = 0,
+  partitionKeyCols = list('season'),
+  reps=8
+)
+st <- SetTarget(
+  project = project, target = "won", metric='LogLoss',
+  featurelistId=f1$featurelistId,
+  partition=partition)
+ViewWebProject(project)
+```
+
+# Step 6: Run Every DR Model
+```{r}
+models <- ListModels(project)
+re_run <- unique(sapply(models, '[[', 'blueprintId'))
+new <- lapply(re_run, function(mod){
+  bp = list(
+    blueprintId = mod,
+    projectId = project$projectId
+  )
+  tryCatch({
+    RequestNewModel(project$projectId, bp, featurelist=f1, scoringType='crossValidation')
+  }, error=function(e) warning(e))
+})
+```
+
+# Step 7: When Autopilot is done, Re-run best model at 100%

@@ -1,0 +1,4 @@
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/chargeback_clean_80.csv
+  metric: LogLoss
+  target: chargeback
+  prediction_dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/chargeback_clean_20.csv

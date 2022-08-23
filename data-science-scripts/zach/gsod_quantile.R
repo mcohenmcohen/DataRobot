@@ -1,0 +1,15 @@
+library(data.table)
+library(readr)
+gsod <- fread('https://s3.amazonaws.com/datarobot_public_datasets/gsod_1929_2009_in_mem_10GB.csv')
+x <- as.numeric(gsod$MaxTemp)
+anyNA(x)
+length(unique(x))
+cuts <- quantile(x, seq(0, 1, length=9))
+y <- as.integer(factor(cut(x, cuts, include.lowest=TRUE)))
+anyNA(y)
+length(unique(y))
+
+gsod_out <- data.table(target=y, gsod)
+gsod_out[,MaxTemp := NULL]
+print(object.size(gsod_out), units='auto')
+write_csv(gsod_out, '~/datasets/gsod_1929_2009_in_mem_10GB_multiclass.csv')

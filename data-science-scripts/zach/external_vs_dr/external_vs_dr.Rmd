@@ -1,0 +1,149 @@
+---
+title: "External Model vs DR"
+date: "`r Sys.Date()`"
+output:
+  md_document: default
+  pdf_document:
+    extra_dependencies: ["float"]
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(fig.pos = "!H", out.extra = "")
+```
+
+```{r, include=FALSE}
+library(data.table)
+library(ggplot2)
+library(ggthemes)
+library(MetricsWeighted)
+```
+
+## Load data and look at the results
+First, let's load the data with the predictions from the original, external model, and datarobot models:
+```{r}
+library(data.table)
+data <- fread('~/workspace/data-science-scripts/zach/external_vs_dr/custom_vs_dr_vs_actuals.csv')
+setnames(
+  data,
+  c('Real Prediction', 'OC prediction', 'DR Prediction'),
+  c('target', 'OC', 'DR')
+)
+data[,target := as.integer(target)]
+```
+
+Now, let's take a look at the predictions from OC vs DataRobot.  The 2 distributions are very different, which makes these models hard to compare.
+
+```{r}
+summary(data)
+```
+
+The mean of the target is `r round(mean(data[['target']]), 3)`.  The DataRobot model has a mean prediction of `r round(mean(data[['DR']]), 3)`, while the OC model has a mean prediction of `r round(mean(data[['OC']]), 3)`.
+
+The DataRobot model appears to be well-calibrated, but the OC model does not.
+
+This calibration problem for the OC model has a huge impact on it's logloss:
+```{r, include=FALSE}
+baseline_logloss = data[,logLoss(target, rep(mean(target), .N))]
+```
+```{r}
+data[,list(
+  OC_logloss=logLoss(target, OC),
+  DR_logloss=logLoss(target, DR),
+  baseline_logloss=logLoss(target, rep(mean(target), .N))
+)]
+```
+
+The accuracy of the OC model is `r data[,round(logLoss(target, OC) / logLoss(target, DR), 2)]` times worse that the DataRobot model!  Even worse, it's `r data[,round(logLoss(target, OC) / baseline_logloss, 2)]` times worse than the baseline model (which is the mean of the target).
+
+Clearly, the OC model can't be trusted or compared to the DataRobot model.
+
+\newpage
+```{r original_plot_hist, fig.show='show', dpi=300, fig.width=7, fig.height=7}
+library(ggplot2)
+library(ggthemes)
+ggplot(data, aes()) + 
+  geom_histogram(aes(x=OC, fill='OC'), bins=60) + 
+  geom_histogram(aes(x=DR, fill='DR'), bins=60) + 
+  scale_fill_manual(values = c("#1F78B4", "#FF7F00")) + 
+  theme_tufte()
+```
+
+\newpage
+```{r original_plot_violin, fig.show='show', dpi=300, fig.width=7, fig.height=7}
+ggplot(data, aes()) + 
+  geom_violin(aes(x='OC', y=OC, fill='OC'), draw_quantiles = c(0.25, 0.5, 0.75)) + 
+  geom_violin(aes(x='DR', y=DR, fill='DR'), draw_quantiles = c(0.25, 0.5, 0.75)) + 
+  scale_fill_manual(values = c("#1F78B4", "#FF7F00")) + 
+  xlab('Model') + 
+  ylab('Prediction') + 
+  theme_tufte()
+```
+
+\newpage
+## Re-calibrate external model
+Let's define a simple calibration function to adjust the predictions from these models:
+```{r}
+recalibrate <- function(x, y=data[['target']]){
+
+  # First, convert from the logit scale to the linear scale
+  x_inv <- qlogis(x)
+  
+  # Now use logist regression to find the itnercewpt that makes x's mean match y's mean
+  model <- glm(y ~ 1, offset=x_inv, family='binomial')
+  intercept <- coef(model)[1]
+
+  # Now add the intercept and convert back to the logit scale
+  x_calib <- plogis(x_inv + intercept)
+  return(x_calib)
+}
+```
+
+We apply this function to both OC and DR to make sure the comparison of the 2 models is fair. The DR model doesn't need much calibration:
+```{r}
+data[,OC_calib := recalibrate(OC)]
+data[,DR_calib := recalibrate(DR)]
+```
+
+## Compare the 2 models
+Now that we've calibrated the data, the OC model and the DR model both predict the correct mean:
+
+```{r}
+summary(data)
+```
+
+Now that both models are calibrated, let's take a look at their logloss:
+```{r}
+data[,list(
+  OC_logloss=logLoss(target, OC_calib),
+  DR_logloss=logLoss(target, DR_calib),
+  baseline_logloss=logLoss(target, rep(mean(target), .N))
+)]
+```
+
+The accuracy of the OC model is still `r data[,round(logLoss(target, OC_calib) / logLoss(target, DR_calib), 2)]` times worse that the DataRobot model.  It's very slightly better than the baseline model, but even with calibration it is clear that the DataRobot models is more accurate.
+
+\newpage
+```{r calibl_plot_hist, fig.show='show', dpi=300, fig.width=7, fig.height=7}
+library(ggplot2)
+library(ggthemes)
+ggplot(data, aes()) + 
+  geom_histogram(aes(x=OC_calib, fill='OC'), bins=60) + 
+  geom_histogram(aes(x=DR_calib, fill='DR'), bins=60) + 
+  scale_fill_manual(values = c("#1F78B4", "#FF7F00")) + 
+  theme_tufte()
+```
+
+\newpage
+```{r calibl_plot_violin, fig.show='show', dpi=300, fig.width=7, fig.height=7}
+ggplot(data, aes()) + 
+  geom_violin(aes(x='OC', y=OC_calib, fill='OC'), draw_quantiles = c(0.25, 0.5, 0.75)) + 
+  geom_violin(aes(x='DR', y=DR_calib, fill='DR'), draw_quantiles = c(0.25, 0.5, 0.75)) + 
+  scale_fill_manual(values = c("#1F78B4", "#FF7F00")) + 
+  xlab('Model') + 
+  ylab('Prediction') + 
+  theme_tufte()
+```
+
+The OC model is still tending to predict higher than the DR model, but the prediction distributions are now much more similar.

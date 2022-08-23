@@ -1,0 +1,11 @@
+base
+data.table
+Matrix
+RSpectra
+irlba
+fpc
+ggplot2
+Rtsne
+scales
+stringi
+dbscan

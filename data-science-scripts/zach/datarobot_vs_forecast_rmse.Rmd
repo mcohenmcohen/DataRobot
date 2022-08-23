@@ -1,0 +1,185 @@
+---
+title: "DataRobot vs. Open Source Forecasting Tools"
+author: "Zachary Deane-Mayer"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document:
+    includes:
+      in_header: header.tex
+---
+
+```{r setup, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
+rm(list=ls(all=T))
+gc(reset=T)
+options(xtable.comment = FALSE)
+knitr::opts_chunk$set(echo = FALSE)
+library(forecast)
+library(fpp)
+library(data.table)
+library(reshape2)
+library(readr)
+library(pbapply)
+library(yaml)
+library(parallel)
+library(pbapply)
+library(yaml)
+library(parallel)
+library(ggplot2)
+library(matrixStats)
+library(knitr)
+library(kableExtra)
+library(xtable)
+load(file='~/workspace/data-science-scripts/zach/compare_data.Rdata')
+EU <- fread('~/workspace/data-science-scripts/zach/otv_results.csv')
+
+#Use best by rmse for DR
+DR <- DR_rmse
+
+#Split out forecast into 3 parts
+AR <- FC[method=='Arima',]
+ES <- FC[method=='Ets',]
+TB <- FC[method=='Tbats',]
+
+#Rename methods
+AR <- AR[,method := 'Arima']
+ES <- ES[,method := 'Exp.Smooth']
+TB <- TB[,method := 'TBATS']
+PR <- PR[,method := 'Prophet']
+
+#Choose datasets that I have for 3 methods and aren't weird
+bad_data <- c(
+  'incarceration-daily-counts-from-fy-2011-to-june-fy-2016_1_ CDF_FEMALES _train.csv',
+  'incarceration-daily-counts-from-fy-2011-to-june-fy-2016_1_ EFFORTS_EX_CONS _train.csv',
+  'incarceration-daily-counts-from-fy-2011-to-june-fy-2016_1_ EXTENDED_HOUSE _train.csv'
+)
+ds <- intersect(DR[,unique(dataset)], FC[,unique(dataset)])
+ds <- intersect(ds, PR[,unique(dataset)])
+ds <- setdiff(ds, bad_data)
+N <- length(ds)
+
+#Subset datasets
+skel <- data.table(dataset = unique(ds))
+rm(FC)
+DR <- merge(DR, skel, all=F)
+AR <- merge(AR, skel, all=F)
+ES <- merge(ES, skel, all=F)
+TB <- merge(TB, skel, all=F)
+PR <- merge(PR, skel, all=F)
+
+#Setup names
+setnames(DR, make.names(names(DR)))
+setnames(AR, make.names(names(AR)))
+setnames(ES, make.names(names(ES)))
+setnames(TB, make.names(names(TB)))
+setnames(PR, make.names(names(PR)))
+
+#Combine
+method_order <- c(
+  'DataRobot',
+  'Prophet',
+  'TBATS',
+  'Arima', 
+  'Exp.Smooth'
+)
+all <- rbindlist(list(DR, AR, ES, TB, PR), fill=T)
+all <- all[,method := factor(method, levels=method_order)]
+
+#Summary of combined data
+summary_data <- all[,list(
+    min_rmse = min(Prediction.RMSE),
+    median_rmse = median(Prediction.RMSE),
+    mean_rmse = mean(Prediction.RMSE),
+    sd_rmse = sd(Prediction.RMSE),
+    max_rmse = max(Prediction.RMSE)
+  ), by='method']
+summary_data <- summary_data[order(method),]
+dr_rmse <- summary_data[method=='DataRobot',round(median_rmse, 2)]
+ar_rmse <- summary_data[method=='Arima',round(median_rmse, 2)]
+es_rmse <- summary_data[method=='Exp.Smooth',round(median_rmse, 2)]
+tb_rmse <- summary_data[method=='TBATS',round(median_rmse, 2)]
+pr_rmse <- summary_data[method=='Prophet', round(median_rmse, 2)]
+
+#DR Only
+DR <- DR[,method := NULL]
+oldnames <- names(DR)[grepl('Prediction', names(DR), fixed=TRUE)]
+newnames <- paste0('DataRobot.', oldnames)
+newnames <- gsub('Prediction', 'Pred', newnames, fixed=T)
+newnames <- gsub('RMSE', 'RMSE', newnames, fixed=T)
+setnames(DR, oldnames, newnames)
+
+#Plotdat
+plotdat <- split(all, all[['method']])
+plotdat <- plotdat[2:length(plotdat)]
+plotdat <- lapply(plotdat, function(x){
+  method <- unique(x[['method']])
+  if(length(method) != 1){
+    stop('Should be one method')
+  }
+  x[,method := NULL]
+  x <- merge(x, DR, by='dataset', all=T)
+  x <- x[,Diff := DataRobot.Pred.RMSE - Prediction.RMSE]
+  x <- x[,list(
+    dataset, 
+    DataRobot.Pred.RMSE,
+    Prediction.RMSE,
+    Diff
+    )]
+    x <- x[order(-Diff, DataRobot.Pred.RMSE, -Prediction.RMSE),]
+  setnames(x, 'Prediction.RMSE', paste0(method, '.Pred.RMSE'))
+})
+
+#Diffdat
+diffdat <- Reduce(function(a,b) merge(a,b,by='dataset',all=T), plotdat)
+keep <- paste0(setdiff(method_order, 'DataRobot'), '.Pred.RMSE')
+diffdat <- diffdat[,c('dataset', keep),with=F]
+diffdat <- merge(DR[,list(dataset, DataRobot.Pred.RMSE)], diffdat, all=T)
+diffdat[,DR.Min.Pct.Improve := (rowMins(as.matrix(diffdat[,keep,with=F]) - DataRobot.Pred.RMSE)) / rowMins(as.matrix(diffdat[,keep,with=F]))]
+diffdat <- diffdat[order(-DR.Min.Pct.Improve, -DataRobot.Pred.RMSE, Prophet.Pred.RMSE),]
+
+#Checks
+diffdat[,mean(DataRobot.Pred.RMSE > Prophet.Pred.RMSE)]
+diffdat[,mean(DataRobot.Pred.RMSE > TBATS.Pred.RMSE)]
+diffdat[,mean(DataRobot.Pred.RMSE > Arima.Pred.RMSE)]
+diffdat[,mean(DataRobot.Pred.RMSE > Exp.Smooth.Pred.RMSE)]
+```
+
+## Methodology
+I compared DataRobot's Out-of-Time Validation (OTV) models to R's Forecast package and Facebook's Prophet package on `r N` datasets. I split these datasets into training sets and test sets, and ran each algorithm on the training set and calculated accuracy on the unseen test set. For DataRobot, I used the test set as a prediction set, so that it was not used by the autopilot for model training or selection. I used the metric "Normalized rmse Score" or "rmse Norm" to compare algorithms, which ranges from -1 (perfectly anti-predictive) to 0 (equivalent to random guessing) to 1 (perfectly predictive).  
+
+With time series problems, we see negative rmse scores more often than with traditional machine learning problems, as models can be fooled by randomness in the time series and end up extrapolating "trends" that do not exist.
+
+I compared DataRobot to a total of 4 open source models: Prophet (from Facebook), auto.arima (from Forecast), ets (automated exponential smoothing from Forecast) and TBATS (a trigonometric function based model from Forecast). Note that all 4 of the open-source forecasting models minimize RMSE, so to keep the comparison fair, I used RMSE as the metric for all DataRobot projects. For each dataset, the DataRobot model with the best rmse Norm on the holdout set was used to make forecasts on the prediction set.
+
+## Results
+```{r, echo=FALSE, message=FALSE, fig.align='center'}
+ggplot(all, aes(x=method, y=`Prediction.RMSE`)) + geom_boxplot() + theme_bw() + scale_y_log10()
+```
+On average, DataRobot is slightly more accurate than Facebook's Prophet package (median rmse of `r I(dr_rmse)` vs `r I(pr_rmse)`). TBATS is the best model  from the Forecast package, but is typically worse that DataRobot or Prophet (median rmse of `r I(tb_rmse)`).
+```{r, echo=FALSE, results="asis"}
+tbl <- xtable(summary_data, method = "compact", caption = "Summary Results")
+print(tbl, floating = TRUE, booktabs = TRUE, latex.environments = "center")
+```
+
+## Conclusion
+DataRobot's OTV models already perform well on a variety of time series problems, and are on average more accurate than all 4 of the open source forecasting models tried. DataRobot does especially well on datasets with complex seasonal patterns, e.g. electricity load, where the hour-of-day pattern may differ in a dramatic (and predictable) way between the winter and summer months. This sort of dynamic seasonality can be extremely difficult for traditional time series models to capture, but is modeled beautifully by DataRobot's "seasonal dummies + XGBoost" approach. DataRobot is also able to make use of covariates, while arima is the only open-source model with this capability.
+
+However, there remains some room for improvement in DataRobot, which can be over-confident based on the holdout set when picking the model to use for forecasting. It might be beneficial to add some heuristics to DataRobot to cause it to prefer simpler models during model selection for time series models. This could help prevent DataRobot from picking complicated models that happen to get lucky in the holdout set but end up extrapolating the wrong trend. On random walk datasets like the S&P 500 stock market data, or the incarceration data, the correct forecast is usually a flat line from the last point (also known as a naive forecast), and the open source models tend to correctly predict this, while DataRobot tends to be overconfident in extrapolating trends.
+\newpage
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.align='center'}
+out <- lapply(plotdat, function(x){
+  x_var <- setdiff(names(x), c('dataset', 'Diff', 'DataRobot.Pred.RMSE'))
+  x_title <- gsub('.Pred.RMSE', '', x_var, fixed=T)
+  plt <- ggplot(x, aes_string(x=x_var, y='DataRobot.Pred.RMSE')) + 
+  geom_point() + theme_bw() + geom_abline(slope=1, intercept=0) + 
+  ggtitle(paste('DataRobot vs', x_title, 'out-of-sample performance')) + 
+    scale_x_log10() + scale_y_log10()
+  print(plt)
+})
+```
+\newpage
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+tbl <- xtable(diffdat, method = "compact", caption = "Full Results")
+print(tbl, floating = TRUE, floating.environment = 'sidewaystable', booktabs = TRUE, scalebox = 0.65)
+```

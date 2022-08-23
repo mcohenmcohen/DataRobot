@@ -1,0 +1,18 @@
+- dataset_name: datarobot_data_science/multiclass_test_data/iris.csv
+  target: Species
+  metric: LogLoss
+  rtype: Multiclass
+  multiclass: true
+  prediction_dataset_name: datarobot_data_science/multiclass_test_data/iris.csv
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/multiclass/iris_80.csv
+  target: target
+  multiclass: True
+  metric: LogLoss
+  prediction_dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/multiclass/iris_20.csv
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/iris.csv
+  target: Species
+  multiclass: True
+  metric: LogLoss
+  prediction_dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/iris.csv

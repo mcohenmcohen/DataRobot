@@ -1,0 +1,67 @@
+---
+title: "forecast demo"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Setup
+```{r, message=FALSE, warning=FALSE, cache=FALSE, results='hide'}
+#install.packages('forecast')
+library(forecast)
+data("AirPassengers")
+
+train <- window(AirPassengers, end=c(1959, 12))
+test <- window(AirPassengers, start=c(1960, 1))
+plot(AirPassengers)
+```
+```{r, warning=FALSE, cache=TRUE, results='show'}
+str(test)
+print(test)
+as.integer(test)
+ts(test, frequency = 1)
+```
+
+## Arima model
+```{r, message=FALSE, warning=FALSE, cache=FALSE, results='hide'}
+arima_model <- auto.arima(train, stepwise=FALSE, trace=FALSE)
+f_arima <- forecast(arima_model, 12)
+plot(f_arima, include=24)
+lines(test, col='red')
+accuracy(f_arima, test)
+```
+```{r, echo=FALSE}
+knitr::kable(accuracy(f_arima, test))
+```
+
+## Exponential Smoothing model
+```{r, message=FALSE, warning=FALSE, cache=FALSE, results='hide'}
+ets_model <- ets(train, restrict=FALSE)
+f_ets <- forecast(ets_model, 12)
+plot(f_ets, include=24)
+lines(test, col='red')
+accuracy(f_ets, test)
+```
+```{r, echo=FALSE}
+knitr::kable(accuracy(f_ets, test))
+```
+
+## Multiple seasonal periods
+```{r, message=FALSE, warning=FALSE, cache=TRUE, results='hide'}
+telec <- read.csv("http://robjhyndman.com/data/turkey_elec.csv")
+telec <- msts(telec, start=2000, seasonal.periods = c(7,354.37,365.25))
+
+train_telec <- window(telec, end=c(2007, 365))
+test_telec <- window(telec, start=c(2008, 1))
+
+tbats_model <- tbats(train_telec, use.parallel=TRUE, num.cores=8)
+f_tbats <- forecast(tbats_model, length(test_telec))
+plot(f_tbats, include=90)
+lines(test_telec, col='red')
+accuracy(f_tbats, test_telec)
+```
+```{r, echo=FALSE}
+knitr::kable(accuracy(f_tbats, test_telec))
+```

@@ -1,0 +1,13 @@
+# test stuff for image augmentations
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/text_100cols.csv
+  target: id
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/text_100kcols_rows_no_images.csv
+  target: id
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/text_250cols.csv
+  target: id
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/text_40cols.csv
+  target: id

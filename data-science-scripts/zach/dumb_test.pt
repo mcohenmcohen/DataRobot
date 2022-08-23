@@ -1,0 +1,43 @@
+
+
+filepath = 'basic_shape_train.csv'
+best_lr = 0.01
+
+curve = pd.read_csv('tests/tasks2/kerasmodels/test_learning_curves_for_lrf/' + filepath)
+learning_rates = curve['Learning Rate']
+losses = curve['Actual Loss']
+
+ordered_lowess_loss = calculate_smooth_loss(learning_rates, losses)
+found_lr = calculate_best_learning_rate(ordered_lowess_loss)
+print(found_lr)
+
+
+# Copy paste for debug, remove!
+
+debugdir = path.expanduser('~')
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+
+t = time.strftime("%Y%m%d-%H%M%S")
+order = np.argsort(learning_rates)[::-1]
+order_loss = np.array(losses)[order]
+ordered_lr = np.array(learning_rates)[order]
+ordered_log_lr = np.log(ordered_lr)
+
+ordered_lowess_loss = sm.nonparametric.lowess(
+    order_loss, ordered_log_lr, frac=0.15, it=3, return_sorted=True, is_sorted=False
+)
+
+lr_vs_loss = pd.DataFrame({'learning_rate': learning_rates, 'loss': losses})
+lr_vs_loss.to_csv(path.join(debugdir, 'lr_vs_loss' + t + '.csv'), index=False)
+
+idx = np.argmin(ordered_lowess_loss[:, 1])
+
+plt.figure(figsize=(10, 6))
+plt.scatter(ordered_lr, order_loss, facecolors='none', edgecolor='darkblue')
+plt.plot(np.exp(ordered_lowess_loss[:, 0]), ordered_lowess_loss[:, 1], color='black')
+plt.scatter(np.exp(ordered_lowess_loss[idx, 0]), ordered_lowess_loss[idx, 1], color='red')
+plt.scatter(np.exp(ordered_lowess_loss[idx, 0])/10, ordered_lowess_loss[idx, 1], color='red')
+plt.xscale('log')
+plt.savefig(path.join(debugdir, 'learning_rate_vs_loss_with_smoother.png' + t + '.png'))

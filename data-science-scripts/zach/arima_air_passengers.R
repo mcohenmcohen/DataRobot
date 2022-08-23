@@ -1,0 +1,8 @@
+library(forecast)
+data("AirPassengers")
+train <- window(AirPassengers, end=c(1958, 12))
+test <- window(AirPassengers, start=c(1959, 1))
+model <- Arima(train, c(4, 1, 4), c(1, 0, 1), method='ML')
+pred <- forecast(model, length(test))
+plot(test, type='p', col='black')
+lines(pred$mean, type='l', col='red')

@@ -1,0 +1,40 @@
+- dataset_name: datarobot-private-datasets-nonredistributable/time_series/pemex_since.csv
+  prediction_dataset_name: datarobot-private-datasets-nonredistributable/time_series/pemex_since.csv
+  target: ZSpread1
+  partitioning:
+    partition_column: TimeStamp
+  blueprints:
+    - model_regex: true
+      model_type: Eureqa
+  use_time_series: True
+  time_series:
+    a_priori_features_missing: True
+    a_priori_features:
+      - 'RowsSinceChange_ZSpread2'
+      - 'RowsSinceChange_ZSpread3'
+      - 'RowsSinceChange_ZSpread4'
+      - 'RowsSinceChange_ZSpread5'
+      - 'RowsSinceChange_ZSpread6'
+      - 'RowsSinceChange_ZSpread7'
+      - 'SecondsSinceChange_ZSpread2'
+      - 'SecondsSinceChange_ZSpread3'
+      - 'SecondsSinceChange_ZSpread4'
+      - 'SecondsSinceChange_ZSpread5'
+      - 'SecondsSinceChange_ZSpread6'
+      - 'SecondsSinceChange_ZSpread7'
+      - 'ZSpread2'
+      - 'ZSpread3'
+      - 'ZSpread4'
+      - 'ZSpread5'
+      - 'ZSpread6'
+      - 'ZSpread7'
+    forecast_window_start: 1
+    forecast_window_end: 1
+    feature_derivation_window_start: -5
+    feature_derivation_window_end: 0
+    windows_basis_unit: 'ROW'
+  comment: |-
+    * This is a customer irregular data
+    * TRACE data and represent bonds sold throughout the day
+    * Has 4.79k datapoints and 27 features
+    * Size 922 KB

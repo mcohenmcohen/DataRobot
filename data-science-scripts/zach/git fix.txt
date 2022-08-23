@@ -1,0 +1,33 @@
+git checkout master && git fetch && git rebase
+git checkout tstearns/poly_task && git fetch && git rebase
+git branch -D tstearns/poly_task2
+git checkout -b tstearns/poly_task2
+git rebase master
+
+git status
+git checkout --theirs ModelingMachine/metablueprint/helpers_feature_selection.py && git add ModelingMachine/metablueprint/helpers_feature_selection.py
+git checkout --theirs ModelingMachine/metablueprint/preprocessing_list_V10.py && git add ModelingMachine/metablueprint/preprocessing_list_V10.py
+git rebase --continue
+
+git status
+git checkout --theirs ModelingMachine/metablueprint/dev_metablueprints_poly_expansion_V1.py && git add  ModelingMachine/metablueprint/dev_metablueprints_poly_expansion_V1.py
+git rebase --continue
+
+git status
+git checkout --theirs  ModelingMachine/engine/task_map.py && git add  ModelingMachine/engine/task_map.py
+git rebase --continue
+
+git status
+git checkout --theirs config/engine.py && git add config/engine.py
+git rebase --continue
+
+git status
+git checkout --theirs tests/tasks2/test_sparse_polynomial_features.py && git add tests/tasks2/test_sparse_polynomial_features.py
+git rebase --continue
+
+rm ModelingMachine/engine/tasks2/sparse_polynomial_features.py~HEAD
+
+git rebase -i HEAD~63  # branch has 63 commits
+
+
+git push --set-upstream origin tstearns/poly_task2

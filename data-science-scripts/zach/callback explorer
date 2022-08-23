@@ -1,0 +1,421 @@
+###############################################################
+#
+#   Custom callbacks for DataRobot Keras Models
+#
+#   Author: Zach Deane-Mayer
+#
+#   Copyright DataRobot Inc, 2019 onwards
+#
+#  NOTE: THIS FILE MUST BE LAZILY IMPORTED!
+#  NOTE: THIS FILE MUST BE LAZILY IMPORTED!
+#  NOTE: THIS FILE MUST BE LAZILY IMPORTED!
+###############################################################
+from __future__ import absolute_import, division, print_function
+
+import numpy as np
+import statsmodels.api as sm
+from common import lazy_import
+from os import path
+import pandas as pd
+import time
+
+K = lazy_import('keras.backend')
+
+
+# TODO: DON'T CLIP PLOTS!
+# TODO: ADD TITLES TO PLOTS
+# If True, will save plots for debugging locally
+DEBUGGING_PLOTS_FLAG = True
+if DEBUGGING_PLOTS_FLAG:
+    debugdir = path.expanduser('~')
+    matplotlib = lazy_import('matplotlib')
+    matplotlib.use('agg')
+    plt = lazy_import('matplotlib.pyplot')
+
+# Copied from https://github.com/keras-team/keras/blob/master/keras/callbacks.py
+# We copy paste this class from keras, because we need to lazy import EVERYTHING from keras
+# Since we can't degine new classes using lazy imports, we've copy/pasted the keras callback class
+# here, and will subclass our copied definition
+class Callback(object):
+    """Abstract base class used to build new callbacks.
+    # Properties
+        params: dict. Training parameters
+            (eg. verbosity, batch size, number of epochs...).
+        model: instance of `keras.models.Model`.
+            Reference of the model being trained.
+    The `logs` dictionary that callback methods
+    take as argument will contain keys for quantities relevant to
+    the current batch or epoch.
+    Currently, the `.fit()` method of the `Sequential` model class
+    will include the following quantities in the `logs` that
+    it passes to its callbacks:
+        on_epoch_end: logs include `acc` and `loss`, and
+            optionally include `val_loss`
+            (if validation is enabled in `fit`), and `val_acc`
+            (if validation and accuracy monitoring are enabled).
+        on_batch_begin: logs include `size`,
+            the number of samples in the current batch.
+        on_batch_end: logs include `loss`, and optionally `acc`
+            (if accuracy monitoring is enabled).
+    """
+
+    def __init__(self):
+        self.validation_data = None
+        self.model = None
+        self.params = None
+
+    def set_params(self, params):
+        self.params = params
+
+    def set_model(self, model):
+        self.model = model
+
+    def on_batch_begin(self, batch, logs=None):
+        """A backwards compatibility alias for `on_train_batch_begin`."""
+
+    def on_batch_end(self, batch, logs=None):
+        """A backwards compatibility alias for `on_train_batch_end`."""
+
+    def on_epoch_begin(self, epoch, logs=None):
+        """Called at the start of an epoch.
+        Subclasses should override for any actions to run. This function should only
+        be called during train mode.
+        # Arguments
+            epoch: integer, index of epoch.
+            logs: dict, currently no data is passed to this argument for this method
+                but that may change in the future.
+        """
+
+    def on_epoch_end(self, epoch, logs=None):
+        """Called at the end of an epoch.
+        Subclasses should override for any actions to run. This function should only
+        be called during train mode.
+        # Arguments
+            epoch: integer, index of epoch.
+            logs: dict, metric results for this training epoch, and for the
+                validation epoch if validation is performed. Validation result keys
+                are prefixed with `val_`.
+        """
+
+    def on_train_batch_begin(self, batch, logs=None):
+        """Called at the beginning of a training batch in `fit` methods.
+        Subclasses should override for any actions to run.
+        # Arguments
+            batch: integer, index of batch within the current epoch.
+            logs: dict, has keys `batch` and `size` representing the current
+                batch number and the size of the batch.
+        """
+        # For backwards compatibility
+        self.on_batch_begin(batch, logs=logs)
+
+    def on_train_batch_end(self, batch, logs=None):
+        """Called at the end of a training batch in `fit` methods.
+        Subclasses should override for any actions to run.
+        # Arguments
+            batch: integer, index of batch within the current epoch.
+            logs: dict, metric results for this batch.
+        """
+        # For backwards compatibility
+        self.on_batch_end(batch, logs=logs)
+
+    def on_test_batch_begin(self, batch, logs=None):
+        """Called at the beginning of a batch in `evaluate` methods.
+        Also called at the beginning of a validation batch in the `fit` methods,
+        if validation data is provided.
+        Subclasses should override for any actions to run.
+        # Arguments
+            batch: integer, index of batch within the current epoch.
+            logs: dict, has keys `batch` and `size` representing the current
+                batch number and the size of the batch.
+        """
+
+    def on_test_batch_end(self, batch, logs=None):
+        """Called at the end of a batch in `evaluate` methods.
+        Also called at the end of a validation batch in the `fit` methods,
+        if validation data is provided.
+        Subclasses should override for any actions to run.
+        # Arguments
+            batch: integer, index of batch within the current epoch.
+            logs: dict, metric results for this batch.
+        """
+
+    def on_predict_batch_begin(self, batch, logs=None):
+        """Called at the beginning of a batch in `predict` methods.
+        Subclasses should override for any actions to run.
+        # Arguments
+            batch: integer, index of batch within the current epoch.
+            logs: dict, has keys `batch` and `size` representing the current
+                batch number and the size of the batch.
+        """
+
+    def on_predict_batch_end(self, batch, logs=None):
+        """Called at the end of a batch in `predict` methods.
+        Subclasses should override for any actions to run.
+        # Arguments
+            batch: integer, index of batch within the current epoch.
+            logs: dict, metric results for this batch.
+        """
+
+    def on_train_begin(self, logs=None):
+        """Called at the beginning of training.
+        Subclasses should override for any actions to run.
+        # Arguments
+            logs: dict, currently no data is passed to this argument for this method
+                but that may change in the future.
+        """
+
+    def on_train_end(self, logs=None):
+        """Called at the end of training.
+        Subclasses should override for any actions to run.
+        # Arguments
+            logs: dict, currently no data is passed to this argument for this method
+                but that may change in the future.
+        """
+
+    def on_test_begin(self, logs=None):
+        """Called at the beginning of evaluation or validation.
+        Subclasses should override for any actions to run.
+        # Arguments
+            logs: dict, currently no data is passed to this argument for this method
+                but that may change in the future.
+        """
+
+    def on_test_end(self, logs=None):
+        """Called at the end of evaluation or validation.
+        Subclasses should override for any actions to run.
+        # Arguments
+            logs: dict, currently no data is passed to this argument for this method
+                but that may change in the future.
+        """
+
+    def on_predict_begin(self, logs=None):
+        """Called at the beginning of prediction.
+        Subclasses should override for any actions to run.
+        # Arguments
+            logs: dict, currently no data is passed to this argument for this method
+                but that may change in the future.
+        """
+
+    def on_predict_end(self, logs=None):
+        """Called at the end of prediction.
+        Subclasses should override for any actions to run.
+        # Arguments
+            logs: dict, currently no data is passed to this argument for this method
+                but that may change in the future.
+        """
+
+# IDEAS:
+# Warm up first, and start from the warm model
+# Look for a "long slope"
+# Pick a steep point on the "long slope"
+# Only run LR finder on large enough datasets
+# Detect if the graph is "crazy" or "noisy" decrease batch size or bail out
+#  self.model.fit_generator(train_seq, epochs=1, shuffle=False, verbose=verbose) use a queue and multiworkers here in fit?
+
+#  MIT License
+#
+#  Copyright (c) 2018 Lucas Anders
+#
+#  Permission is hereby granted, free of charge, to any person obtaining a copy
+#  of this software and associated documentation files (the "Software"), to deal
+#  in the Software without restriction, including without limitation the rights
+#  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+#  copies of the Software, and to permit persons to whom the Software is
+#  furnished to do so, subject to the following conditions:
+#
+#  The above copyright notice and this permission notice shall be included in all
+#  copies or substantial portions of the Software.
+#
+#  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+#  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+#  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+#  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+#  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+#  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#  SOFTWARE.
+class LRFinder(Callback):
+    '''
+
+    Initial code from:
+    https://github.com/LucasAnders1/LearningRateFinder/blob/master/lr_finder_callback.py
+
+    Modified using:
+    http://puzzlemusa.com/2018/05/14/learning-rate-finder-using-keras/
+
+    Based on the original paper from http:/arxiv.org/abs/1506.01186
+
+    This implementation calculates a moving average and stops training the model if the loss is
+    exploding (the current loss >>> the moving average)
+
+    This implementation uses a multiplicatively, or quadtratically increasing learning rate.  So,
+    given a start rate, an end rate, and a number of steps it calculates a learning rate multiplier
+    such that multiplying the start_lr by the multiplier number_of_steps times produces the final
+    lr.
+
+    Parameters
+    ----------
+    start_lr : float (default=1e-6)
+        A low learning rate to start at
+    end_lr : float (default=10.0)
+        A high learning rate to end at
+    number_of_steps : int (default=1)
+        Number of steps to take between the start_lr and the end_lr
+    beta : float (default=0.98)
+        Factor for the moving average of loss
+    '''
+
+    def __init__(self, start_lr=1e-6, end_lr=10.0, number_of_steps=1, beta=0.98):
+        super(LRFinder, self).__init__()
+
+        # Definied on init
+        self.start_lr = start_lr
+        self.end_lr = end_lr
+        self.number_of_steps = number_of_steps
+        self.beta = beta
+        self.lr_multiplier_each_step = (end_lr / start_lr) ** (1.0 / number_of_steps)
+
+        # Defined later
+        self.best_loss = 1e9
+        self.avg_loss = 0
+        self.iteration = 0
+        self.losses, self.smoothed_losses, self.learning_rates, self.iterations = [], [], [], []
+        self.best_lr = None
+
+    def on_train_begin(self, logs=None):
+        K.set_value(self.model.optimizer.lr, self.start_lr)
+
+    def on_batch_end(self, batch, logs=None):
+        logs = logs or {}
+        loss = logs.get('loss')
+        self.iteration += 1
+
+        self.avg_loss = self.beta * self.avg_loss + (1 - self.beta) * loss
+        smoothed_loss = self.avg_loss / (1 - self.beta ** self.iteration)
+
+        # Check if the loss is not exploding
+        if self.iteration > 1 and smoothed_loss > self.best_loss * 4:
+            self.model.stop_training = True
+            return
+
+        if smoothed_loss < self.best_loss or self.iteration == 1:
+            self.best_loss = smoothed_loss
+
+        lr = self.start_lr * (self.lr_multiplier_each_step ** self.iteration)
+
+        self.losses.append(loss)
+        self.smoothed_losses.append(smoothed_loss)
+        self.learning_rates.append(lr)
+        self.iterations.append(self.iteration)
+
+        K.set_value(self.model.optimizer.lr, lr)
+
+    def calculate_smooth_loss(self):
+        """
+        Use self.learning_rates and self.losses to make a smoothed mapping of
+        self.learning_rates->self.losses
+
+        returns a 2-D array, from sm.nonparametric.lowess, where
+        return[:,0] is the smoothed log learning_rate and
+        return[:,1] is the smoothed loss
+
+        The return is the return from sm.nonparametric.lowess(return_sorted=True)
+
+        Na's and Infs will be excluded
+        """
+        order = np.argsort(self.learning_rates)[::-1]
+        order_loss = np.array(self.losses)[order]
+        ordered_lr = np.array(self.learning_rates)[order]
+        ordered_log_lr = np.log(ordered_lr)
+
+        ordered_lowess_loss = sm.nonparametric.lowess(
+            order_loss, ordered_log_lr, frac=0.15, it=3, return_sorted=True, is_sorted=False
+        )
+
+        if DEBUGGING_PLOTS_FLAG:
+            t = time.strftime("%Y%m%d-%H%M%S")
+
+            lr_vs_loss = pd.DataFrame({
+                'learning_rate': self.learning_rates,
+                'loss': self.losses,
+            })
+            lr_vs_loss.to_csv(path.join(debugdir, 'lr_vs_loss' + t + '.csv'), index=False)
+
+            plt.figure(figsize=(10, 6))
+            plt.scatter(ordered_lr, order_loss, facecolors='none', edgecolor='darkblue')
+            plt.plot(np.exp(ordered_lowess_loss[:, 0]), ordered_lowess_loss[:, 1], color='black')
+            plt.xscale('log')
+            plt.savefig(path.join(debugdir, 'learning_rate_vs_loss_with_smoother.png' + t + '.png'))
+
+        return ordered_lowess_loss
+
+    def calculate_max_gradient_learning_rate(self, ordered_lowess_loss):
+        """
+        Gived a 2D array, where ordered_lowess_loss[:,0] is smoothed log learning_rates and
+        ordered_lowess_loss[:,1] is smoothed losses, find the gradient of loss with respect
+        to learning_rate, and return the learning_rate at that point.
+
+        Only look at gradients up to the point with the lowest loss.
+
+        In other words, "look" at the graph of the learning rate, and pick the section of the graph
+        with the steepest slope, prior to the lowest loss.  This has been suggested as a good
+        heuristic for choosing learning rates.
+
+        https://twitter.com/jeremyphoward/status/929925233494065153?lang=en
+        https://towardsdatascience.com/estimating-optimal-learning-rate-for-a-deep-neural-network-ce32f2556ce0#---0-58
+        https://www.jeremyjordan.me/nn-learning-rate/
+        """
+
+        # Only use the data up to the point on the grap with the lowest loss
+        # Once the model starts diverging, we don't care how steep the learning rate is
+        # TODO:  THIS NEEDS SOME SERIOUS TEST CASES
+        # TODO:  THIS NEEDS SOME SERIOUS TEST CASES
+        # TODO:  THIS NEEDS SOME SERIOUS TEST CASES
+        # TODO:  THIS NEEDS SOME SERIOUS TEST CASES
+        # TODO:  THIS NEEDS SOME SERIOUS TEST CASES
+        # TODO:  THIS NEEDS SOME SERIOUS TEST CASES
+        # TODO:  THIS NEEDS SOME SERIOUS TEST CASES
+        lowest_loss_idx = np.argmin(ordered_lowess_loss[:, 1])
+        if lowest_loss_idx > 0:
+            loss_we_care_about = ordered_lowess_loss[:lowest_loss_idx, :]
+        else:
+            loss_we_care_about = ordered_lowess_loss
+
+        if loss_we_care_about.shape[0] > 2:
+            ordered_smoothed_grad = np.gradient(loss_we_care_about[:, 1], loss_we_care_about[:, 0])
+            best_idx = np.argmin(ordered_smoothed_grad)
+        else:
+            best_idx = max(0, lowest_loss_idx - 1)
+
+        # TODO: DOC WHY WE EXP THIS
+        # MAYBE EXP OUTSIDE THIS FUNCTION
+        best_lr = np.exp(loss_we_care_about[best_idx, 0])
+
+        # For debugging, you can uncomment the following plot of the gradients
+
+        if DEBUGGING_PLOTS_FLAG:
+            t = time.strftime("%Y%m%d-%H%M%S")
+            plt.figure(figsize=(10, 6))
+            plt.scatter(loss_we_care_about[:, 0], ordered_smoothed_grad)
+            plt.savefig(path.join(debugdir, 'learning_rate_vs_gradient' + t + '.png'))
+
+            plt.figure(figsize=(10, 6))
+            plt.plot(np.exp(loss_we_care_about[:, 0]), loss_we_care_about[:, 1], color='black')
+            plt.scatter(best_lr, loss_we_care_about[best_idx, 1], facecolors='red', edgecolor='red')
+            plt.xscale('log')
+            plt.savefig(path.join(debugdir, 'learning_rate_vs_loss_with_best_lr.png' + t + '.png'))
+
+        return best_lr
+
+    def on_train_end(self, logs=None):
+
+        # Smooth the loss
+        ordered_lowess_loss = self.calculate_smooth_loss()
+
+        # Calculate the max gradient loss
+        best_lr = self.calculate_max_gradient_learning_rate(ordered_lowess_loss)
+
+        # Store the best LR for future reference
+        self.best_lr = best_lr
+
+        # Set the model's lr to the best lr
+        K.set_value(self.model.optimizer.lr, best_lr)

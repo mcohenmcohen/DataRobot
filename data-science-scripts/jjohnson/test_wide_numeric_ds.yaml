@@ -1,0 +1,16 @@
+# test stuff for image augmentations
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/wide_numeric_1k.csv
+  target: id
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/wide_numeric_10k.csv
+  target: id
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/wide_numeric_20.csv
+  target: id
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/wide_numeric_100.csv
+  target: id
+
+- dataset_name: https://s3.amazonaws.com/datarobot-private-image-datasets/synthetic/wide_numeric_500.csv
+  target: id

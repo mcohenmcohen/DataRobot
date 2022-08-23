@@ -1,0 +1,41 @@
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/10k_diabetes.xlsx
+  metric: LogLoss
+  target: readmitted
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/10K_Lending_Club_Loans.csv
+  metric: LogLoss
+  target: is_bad
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/DR_Demo_Pred_Main_Reg.csv
+  metric: Poisson Deviance
+  target: qty_replaced
+  target_type: Multiclass
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/DR_Demo_Car_Insurance_Fraud.csv
+  metric: LogLoss
+  target: FRAUD
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/DR_Demo_AWS_Job_Optimization.csv
+  metric: Gamma Deviance
+  target: Target_Max_Ram
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/DR_Demo_Fire_Ins_Loss_only.csv
+  metric: RMSE
+  target: loss
+  target_type: Regression
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/DR_Demo_credit_card_default.csv
+  metric: LogLoss
+  target: target
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/DR_Demo_NBA_2017-2018.csv
+  metric: RMSE
+  target: game_score
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/DR_Demo_Viral_News_Stories_training.xlsx
+  target: viral_score
+  target_type: Regression
+
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/DR_Demo_HumanResources_Hiring.csv
+  metric: LogLoss
+  target: Hired

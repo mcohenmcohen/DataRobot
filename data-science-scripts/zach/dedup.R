@@ -1,0 +1,5 @@
+library(data.table)
+dat=fread('https://s3.amazonaws.com/datarobot_public_datasets/images/train_chest_xray.csv')
+setkeyv(dat, 'data')
+dat2 <- unique(dat)
+fwrite(dat2, '~/datasets/train_chest_xray_dedup.csv')

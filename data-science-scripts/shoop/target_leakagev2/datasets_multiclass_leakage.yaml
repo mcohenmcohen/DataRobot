@@ -1,0 +1,22 @@
+- dataset_name: https://s3.amazonaws.com/datarobot_public_datasets/iris.csv
+  target: Species
+  target_class_count: 3
+  leaky_features: null
+
+- dataset_name: https://datarobot-private-datasets-nonredistributable.s3.amazonaws.com/leakage_private/PetAdoption_Training_noleak.csv
+  target: OutcomeType
+  target_class_count: 5
+  leaky_features: null
+
+- dataset_name: https://datarobot-private-datasets-nonredistributable.s3.amazonaws.com/leakage_private/se-sp-alldevicesfailperiod(0.05_sample_frac).csv
+  target: selfteststatus
+  target_class_count: 3
+  leaky_features:
+  - assetid
+
+- dataset_name: https://datarobot-private-datasets-nonredistributable.s3.amazonaws.com/leakage_private/10k_diabetes(readmitted_multiclass).csv
+  target: readmitted_multiclass
+  target_class_count: 3
+  leaky_features:
+  - readmitted
+  - discharge_disposition_id

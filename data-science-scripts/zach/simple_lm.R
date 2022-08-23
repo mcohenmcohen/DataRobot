@@ -1,0 +1,6 @@
+rm(list=ls(all=T))
+gc(reset=T)
+data <- read.csv('~/Downloads/10k_no_text.csv')
+n_unique <- sapply(data, function(x) length(unique(x)))
+model <- lm(time_in_hospital~., data[,n_unique > 1])
+pred <- predict(model, data[,n_unique > 1])

@@ -1,0 +1,114 @@
+{
+ "1": [
+  [
+   "CAT"
+  ],
+  [
+   "ORDCAT2 dtype=float32;m=freq"
+  ],
+  "T"
+ ],
+ "2": [
+  [
+   "NUM"
+  ],
+  [
+   "PNIA4 dtype=float32;s=1"
+  ],
+  "T"
+ ],
+ "3": [
+  [
+   "2"
+  ],
+  [
+   "FS_RFC2 md=40;bs=True;rbs=0.25;bbs=1;e=1;nt=2000;mf=1;pp_stk=0;fs_t=0.001;fs_max=50;fs_min=1"
+  ],
+  "T"
+ ],
+ "4": [
+  [
+   "3"
+  ],
+  [
+   "DIFF3 dtype=float32;ivr=0.01"
+  ],
+  "T"
+ ],
+ "5": [
+  [
+   "2",
+   "4"
+  ],
+  [
+   "BIND"
+  ],
+  "T"
+ ],
+ "6": [
+  [
+   "NUM"
+  ],
+  [
+   "PNI2 dtype=float32"
+  ],
+  "T"
+ ],
+ "7": [
+  [
+   "6"
+  ],
+  [
+   "RST dtype=float32"
+  ],
+  "T"
+ ],
+ "8": [
+  [
+   "CAT"
+  ],
+  [
+   "PDM3 cm=50000;dtype=float32;sc=10"
+  ],
+  "T"
+ ],
+ "9": [
+  [
+   "7",
+   "8"
+  ],
+  [
+   "PPCA dtype=float32;k=250;km=500"
+  ],
+  "T"
+ ],
+ "10": [
+  [
+   "9"
+  ],
+  [
+   "KMEANS k=pham"
+  ],
+  "S"
+ ],
+ "11": [
+  [
+   "1",
+   "5",
+   "10"
+  ],
+  [
+   "FS_RFCDR2 md=40;bs=True;rbs=0.25;bbs=1;e=0;mf=0.3;pp_stk=0;fs_t=0.001"
+  ],
+  "T"
+ ],
+ "12": [
+  [
+   "11"
+  ],
+  [
+   "UESXGBC2 lr=0.05;n=5000;cbt=0.2;md=[3, 5, 7];rs=153;t_n=1;t_f=0.05;t_a=2;tm=hist;mv=0.0;t_m=Weighted LogLoss"
+  ],
+  "P"
+ ]
+}

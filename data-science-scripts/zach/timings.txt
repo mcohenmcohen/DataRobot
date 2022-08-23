@@ -1,0 +1,9 @@
+# Ethernet:
+Unit: milliseconds
+                              expr      min       lq     mean   median      uq      max neval
+system("git fetch && git rebase") 442.8032 456.2286 603.8828 465.4434 697.685 3030.868   100
+
+# datarobot-ldap
+Unit: milliseconds
+                              expr      min       lq     mean   median       uq      max neval
+ system("git fetch && git rebase") 457.9165 490.9425 685.2788 500.5101 648.2045 2858.106   100
